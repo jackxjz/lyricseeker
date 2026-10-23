@@ -1,0 +1,63 @@
+[package]
+name = "lyricseeker"
+version = "0.1.0"
+description = "LyricSeeker — 逐字歌词检索与复制工具"
+authors = ["you"]
+license = "MIT"
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "lyricseeker_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# 打包后必须内嵌前端资源，而不是去连 devUrl（否则 release 版打开是「拒绝连接」）。
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+thiserror = "2"
+urlencoding = "2"
+base64 = "0.22"
+encoding_rs = "0.8"
+
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-store = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+
+# 只取解析/生成/解密四件套，不用 lyrics-helper 的 search 门面：
+# 那条链路会拉入 reqwest → rustls → aws-lc-rs → aws-lc-sys，
+# 其 C 源码在本机 MSVC 下链接期报 LNK1104（lib.exe 无法创建临时文件），无法编译。
+# 我们需要自己写的部分（HTTP 搜索、酷狗 fmt=krc）本来就绕不开，因此自行实现。
+lyrics-core = "0.5.1"
+lyrics-crypto = "0.5.1"
+lyrics-parsers = "0.5.1"
+lyrics-generators = "0.5.1"
+
+# native-tls 在 Windows 上走 schannel，不引入 aws-lc-sys。
+reqwest = { version = "0.13", default-features = false, features = [
+    "native-tls",
+    "json",
+    "charset",
+    "http2",
+    "gzip",
+    "query",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

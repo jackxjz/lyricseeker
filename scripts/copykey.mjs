@@ -1,0 +1,12 @@
+﻿const CDP = "http://127.0.0.1:9333";
+const list = await (await fetch(`${CDP}/json/list`)).json();
+const ws = new WebSocket(list.find(t=>t.type==="page").webSocketDebuggerUrl);
+let id=0; const pending=new Map();
+await new Promise(r=>ws.addEventListener("open",r));
+ws.addEventListener("message",e=>{const m=JSON.parse(e.data);const s=pending.get(m.id);if(!s)return;pending.delete(m.id);m.error?s.reject(new Error(JSON.stringify(m.error))):s.resolve(m.result);});
+const send=(me,p={})=>new Promise((res,rej)=>{const i=++id;pending.set(i,{resolve:res,reject:rej});ws.send(JSON.stringify({id:i,method:me,params:p}));setTimeout(()=>{if(pending.delete(i))rej(new Error("timeout"))},60000);});
+await send("Runtime.enable");
+const key = process.argv[2] || "1";
+await send("Runtime.evaluate",{expression:`window.dispatchEvent(new KeyboardEvent('keydown',{key:'${key}',code:'Digit${key}',keyCode:${48+Number(key)},ctrlKey:true,bubbles:true}))`});
+await new Promise(r=>setTimeout(r,1200));
+ws.close();

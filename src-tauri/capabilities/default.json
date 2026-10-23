@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "LyricSeeker 主窗口权限：核心 + 剪贴板写入 + 全局快捷键",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
+    "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
+    "store:default"
+  ]
+}
