@@ -1,6 +1,12 @@
 param(
-    [string]$Out = "E:\Code 编程\DeepSeek Harness\LyricSeeker\docs\screenshot-kugou.png"
+    # 默认输出路径由脚本自身位置推导，避免把非 ASCII 路径写死在文件里被控制台编码破坏。
+    [string]$Out
 )
+
+if (-not $Out) {
+    $root = Split-Path $PSScriptRoot -Parent
+    $Out = Join-Path $root "docs\screenshot.png"
+}
 
 Add-Type -AssemblyName System.Drawing
 
