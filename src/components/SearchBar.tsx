@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import type { Source, SourceFilter } from "../types";
 import { SOURCE_LABEL } from "../types";
+import { GearIcon, PinIcon } from "./Icons";
 
 interface Props {
   inputRef: RefObject<HTMLInputElement | null>;
@@ -75,24 +76,28 @@ export function SearchBar({
         ))}
       </div>
 
-      <button
-        type="button"
-        className={onTop ? "icon-button active" : "icon-button"}
-        title={onTop ? "取消窗口置顶" : "窗口置顶"}
-        aria-pressed={onTop}
-        onClick={onToggleTop}
-      >
-        置顶
-      </button>
+      <div className="window-actions">
+        <button
+          type="button"
+          className={onTop ? "icon-button active" : "icon-button"}
+          title={onTop ? "取消窗口置顶" : "窗口置顶"}
+          aria-label={onTop ? "取消窗口置顶" : "窗口置顶"}
+          aria-pressed={onTop}
+          onClick={onToggleTop}
+        >
+          <PinIcon />
+        </button>
 
-      <button
-        type="button"
-        className="icon-button"
-        title="设置（Ctrl+,）"
-        onClick={onOpenSettings}
-      >
-        设置
-      </button>
+        <button
+          type="button"
+          className="icon-button"
+          title="设置（Ctrl+,）"
+          aria-label="设置"
+          onClick={onOpenSettings}
+        >
+          <GearIcon />
+        </button>
+      </div>
     </header>
   );
 }

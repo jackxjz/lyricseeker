@@ -7,7 +7,6 @@ interface Props {
   disabled: boolean;
   onCopy: (formatName: CopyFormat) => void;
   onRefresh: () => void;
-  onOpenSettings: () => void;
 }
 
 /** hint 展示时间标签的形态，让人一眼看出两种逐字的区别。 */
@@ -18,7 +17,7 @@ const FORMAT_HINTS: Record<CopyFormat, string> = {
   text: "不带任何时间标记",
 };
 
-export function CopyBar({ doc, busy, disabled, onCopy, onRefresh, onOpenSettings }: Props) {
+export function CopyBar({ doc, busy, disabled, onCopy, onRefresh }: Props) {
   return (
     <footer className="copybar">
       <div className="copy-buttons">
@@ -46,9 +45,6 @@ export function CopyBar({ doc, busy, disabled, onCopy, onRefresh, onOpenSettings
           onClick={onRefresh}
         >
           重新获取
-        </button>
-        <button type="button" className="ghost" title="复制选项与缓存管理" onClick={onOpenSettings}>
-          设置
         </button>
       </div>
     </footer>

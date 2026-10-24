@@ -291,7 +291,6 @@ export default function App() {
         onRefresh={() => {
           if (selected) void doFetch(selected, true);
         }}
-        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <StatusBar

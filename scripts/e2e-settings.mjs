@@ -81,7 +81,7 @@ async function run() {
 
   // 1. 没有选中歌曲时也能打开设置
   const hasDocBefore = await evaluate(`!!document.querySelector('.lyric-line')`);
-  await evaluate(`document.querySelectorAll('.icon-button')[1].click()`);
+  await evaluate(`document.querySelector('.window-actions .icon-button:last-child').click()`);
   await waitFor(`!!document.querySelector('.settings-page')`, "设置页打开");
   check("未选中歌曲时也能打开设置", !hasDocBefore && true, `打开前有无歌词=${hasDocBefore}`);
 
@@ -141,7 +141,7 @@ async function run() {
 
   // 7. 关掉酷狗 → 主页只剩 QQ 音乐，且不再有「全部」
   //    注意：设置会被持久化，脚本可能跑在「酷狗已关」的状态上，所以先读当前值再定动作。
-  await evaluate(`document.querySelectorAll('.icon-button')[1].click()`);
+  await evaluate(`document.querySelector('.window-actions .icon-button:last-child').click()`);
   await waitFor(`!!document.querySelector('.settings-page')`, "设置页再次打开");
   const kugouWasOn = await evaluate(`
     (() => {
@@ -188,7 +188,7 @@ async function run() {
 
   // 9. 恢复酷狗，验证设置持久化（写入 settings.json）
   //    同样按当前状态决定是否点击，脚本可重复运行。
-  await evaluate(`document.querySelectorAll('.icon-button')[1].click()`);
+  await evaluate(`document.querySelector('.window-actions .icon-button:last-child').click()`);
   await waitFor(`!!document.querySelector('.settings-page')`, "设置页打开");
   await evaluate(`
     (() => {

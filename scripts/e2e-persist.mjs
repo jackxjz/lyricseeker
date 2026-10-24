@@ -59,7 +59,7 @@ const snapshot = `(function () {
 async function openSettings() {
   const open = await evaluate(`!!document.querySelector('.settings-page')`);
   if (!open) {
-    await evaluate(`document.querySelectorAll('.icon-button')[1].click()`);
+    await evaluate(`document.querySelector('.window-actions .icon-button:last-child').click()`);
     await sleep(500);
   }
 }
