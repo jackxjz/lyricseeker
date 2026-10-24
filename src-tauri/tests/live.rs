@@ -103,6 +103,89 @@ async fn kugou_end_to_end() {
     println!("--- enhanced 前 3 行 ---\n{}", enhanced.lines().take(3).collect::<Vec<_>>().join("\n"));
 }
 
+/// 统计覆盖率，并打印前几行对照，方便人工判断译文是否真的贴对了。
+fn report_translation_coverage(label: &str, parsed: &lyricseeker_lib::lyrics::Parsed) -> f64 {
+    let total = parsed.lines.len();
+    let translated = parsed
+        .lines
+        .iter()
+        .filter(|line| line.translation.is_some())
+        .count();
+    let ratio = translated as f64 / total.max(1) as f64;
+
+    println!("{label}：{translated}/{total} 行有译文（{:.0}%）", ratio * 100.0);
+    for line in parsed
+        .lines
+        .iter()
+        .filter(|line| line.translation.is_some())
+        .take(4)
+    {
+        println!(
+            "  [{}ms] {} / {}",
+            line.start_ms,
+            line.text,
+            line.translation.as_deref().unwrap_or("")
+        );
+    }
+
+    ratio
+}
+
+#[tokio::test]
+#[ignore = "需要联网"]
+async fn qq_translation_is_mostly_complete() {
+    // Shape of You 在 QQ 侧有完整译文；修复前严格毫秒相等只能贴上 16/92 行。
+    let candidates = qq::search("Shape of You Ed Sheeran", 10)
+        .await
+        .expect("QQ 搜索应成功");
+    let target = candidates
+        .iter()
+        .find(|candidate| candidate.title.contains("Shape of You"))
+        .expect("应能搜到 Shape of You");
+
+    let raw = qq::fetch_lyrics(target).await.expect("QQ 取词应成功");
+    let translation = raw.translation.as_deref().expect("该曲目应有译文");
+
+    let mut parsed = lyricseeker_lib::lyrics::parse_qq(&raw.text, raw.word_synced);
+    lyricseeker_lib::lyrics::attach_translation(&mut parsed, translation);
+
+    let ratio = report_translation_coverage("QQ", &parsed);
+    assert!(
+        ratio > 0.85,
+        "译文覆盖率应超过 85%，实际 {:.0}%",
+        ratio * 100.0
+    );
+}
+
+#[tokio::test]
+#[ignore = "需要联网"]
+async fn kugou_translation_is_mostly_complete() {
+    // 酷狗的译文藏在 KRC 的 [language:] 里，修复前完全没解析，覆盖率是 0。
+    let candidates = kugou::search("Shape of You Ed Sheeran", 10)
+        .await
+        .expect("酷狗搜索应成功");
+    let target = candidates
+        .iter()
+        .find(|candidate| candidate.title.contains("Shape of You"))
+        .expect("应能搜到 Shape of You");
+
+    let raw = kugou::fetch_lyrics(target).await.expect("酷狗取词应成功");
+    let translations = raw
+        .translation_lines
+        .as_deref()
+        .expect("该曲目应有译文");
+
+    let mut parsed = lyricseeker_lib::lyrics::parse_kugou(&raw.text, raw.word_synced);
+    lyricseeker_lib::lyrics::attach_translation_lines(&mut parsed, translations);
+
+    let ratio = report_translation_coverage("酷狗", &parsed);
+    assert!(
+        ratio > 0.85,
+        "译文覆盖率应超过 85%，实际 {:.0}%",
+        ratio * 100.0
+    );
+}
+
 #[tokio::test]
 #[ignore = "需要联网"]
 async fn aggregate_search_merges_both_sources() {

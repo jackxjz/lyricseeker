@@ -4,6 +4,7 @@ use lyrics_parsers::parsers::{parse_lyrics, parse_lyrics_auto};
 
 use crate::model::{
     LyricsDoc, LyricLine, SongCandidate, Source, attach_translations, convert_lines, has_syllables,
+    is_placeholder_translation,
 };
 
 /// 解析后的歌词与来源信息。
@@ -104,6 +105,19 @@ pub fn attach_translation(parsed: &mut Parsed, translation: &str) {
     attach_translations(&mut parsed.lines, &translations);
 }
 
+/// 按下标把译文贴到主歌词行上（酷狗 KRC 的 `[language:]` 走这条）。
+///
+/// 酷狗给的译文数组与主歌词行严格一一对应，比按时间戳匹配可靠得多，
+/// 所以这里不做任何容差搜索。下标越界或占位符一律跳过。
+pub fn attach_translation_lines(parsed: &mut Parsed, translations: &[String]) {
+    for (line, translation) in parsed.lines.iter_mut().zip(translations) {
+        if is_placeholder_translation(translation) {
+            continue;
+        }
+        line.translation = Some(translation.trim().to_string());
+    }
+}
+
 /// 组装最终 DTO。
 pub fn into_doc(candidate: SongCandidate, parsed: Parsed) -> LyricsDoc {
     let notice = parsed.notice.or_else(|| {
@@ -195,12 +209,101 @@ mod tests {
         );
     }
 
+    /// 回归测试：QQ 的翻译是 10ms 精度 LRC，主歌词是毫秒级 QRC，两者很少严格相等。
+    /// 修复前整首只能贴上零星几行。
+    #[test]
+    fn translation_survives_sub_10ms_offset() {
+        let mut parsed = parse_qq(QRC_SAMPLE, true);
+        let mut text = String::from("[00:00.07]");
+        text.push_str("偏差七毫秒");
+        text.push('\n');
+        attach_translation(&mut parsed, &text);
+        assert_eq!(
+            parsed.lines[0].translation.as_deref(),
+            Some("偏差七毫秒"),
+            "10ms 精度差不应导致翻译丢失"
+        );
+    }
+
+    /// `//` 是 QQ 给「本行无翻译」的占位符，不应被当成翻译显示出来。
+    #[test]
+    fn placeholder_translation_is_ignored() {
+        let mut parsed = parse_qq(QRC_SAMPLE, true);
+        let mut text = String::from("[00:00.00]//");
+        text.push('\n');
+        attach_translation(&mut parsed, &text);
+        assert!(
+            parsed.lines[0].translation.is_none(),
+            "占位符 // 不应被贴上"
+        );
+    }
+
+    /// 同一条翻译只能被消费一次，避免快节奏段落里一行翻译被相邻几行共用。
+    #[test]
+    fn one_translation_is_consumed_once() {
+        let mut lines = vec![
+            LyricLine {
+                start_ms: 1000,
+                dur_ms: Some(500),
+                text: "a".into(),
+                syllables: None,
+                translation: None,
+            },
+            LyricLine {
+                start_ms: 1050,
+                dur_ms: Some(500),
+                text: "b".into(),
+                syllables: None,
+                translation: None,
+            },
+        ];
+        let translations = vec![LyricLine {
+            start_ms: 1000,
+            dur_ms: None,
+            text: "only once".into(),
+            syllables: None,
+            translation: None,
+        }];
+        crate::model::attach_translations(&mut lines, &translations);
+        let attached = lines.iter().filter(|line| line.translation.is_some()).count();
+        assert_eq!(attached, 1, "同一条翻译只能被消费一次");
+    }
+
     #[test]
     fn unparsable_text_falls_back_to_plain_lines() {
         let parsed = parse_qq("这不是歌词\n只是两行字", false);
         assert_eq!(parsed.lines.len(), 2);
         assert!(!parsed.word_synced);
         assert!(parsed.notice.is_some());
+    }
+
+    /// 酷狗走的是「按下标贴」：译文数组与主歌词行一一对应，不依赖时间戳。
+    #[test]
+    fn kugou_translation_attaches_by_line_index() {
+        let mut parsed = parse_kugou(KRC_SAMPLE, true);
+        attach_translation_lines(
+            &mut parsed,
+            &["第一行译文".to_string(), "第二行译文".to_string()],
+        );
+        assert_eq!(parsed.lines[0].translation.as_deref(), Some("第一行译文"));
+        assert_eq!(parsed.lines[1].translation.as_deref(), Some("第二行译文"));
+    }
+
+    #[test]
+    fn kugou_translation_skips_blank_and_placeholder() {
+        let mut parsed = parse_kugou(KRC_SAMPLE, true);
+        attach_translation_lines(&mut parsed, &[String::new(), "//".to_string()]);
+        assert!(parsed.lines[0].translation.is_none(), "空串不贴");
+        assert!(parsed.lines[1].translation.is_none(), "占位符不贴");
+    }
+
+    /// 酷狗返回的译文行数可能少于主歌词行数，不能越界也不能把剩余行全当空。
+    #[test]
+    fn kugou_translation_shorter_than_lines_is_safe() {
+        let mut parsed = parse_kugou(KRC_SAMPLE, true);
+        attach_translation_lines(&mut parsed, &["只有一行".to_string()]);
+        assert_eq!(parsed.lines[0].translation.as_deref(), Some("只有一行"));
+        assert!(parsed.lines[1].translation.is_none());
     }
 
     fn sample_candidate() -> SongCandidate {

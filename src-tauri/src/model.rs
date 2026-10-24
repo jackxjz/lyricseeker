@@ -204,17 +204,56 @@ pub fn convert_lines(lines: &[LineInfo]) -> Vec<LyricLine> {
         .collect()
 }
 
-/// 把翻译歌词按开始时间贴到主歌词行上（时间必须完全相等才贴）。
+/// 翻译行的匹配容差（毫秒）。
+///
+/// QQ 的翻译是标准 LRC，时间戳只精确到 10ms（`[00:09.55]` → 9550），
+/// 而 QRC 主歌词是毫秒级（`9551`）。两者严格相等的话整首只能贴上零星几行
+/// （实测「Shape of You」92 行里只有 16 行恰好相等，其余差值 1~9ms）。
+const TRANSLATION_TOLERANCE_MS: i32 = 120;
+
+/// 判断一条翻译是不是「本行没有翻译」的占位符。
+///
+/// QQ 对纯音乐段落、制作信息行会填 `//`，直接显示出来既难看也会让人
+/// 误以为翻译成功。
+pub(crate) fn is_placeholder_translation(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    trimmed
+        .chars()
+        .all(|c| matches!(c, '/' | '\\' | '-' | '—' | '…' | '.' | '♪' | '·' | ' '))
+}
+
+/// 把翻译歌词按开始时间贴到主歌词行上。
+///
+/// 用「容差内取最近」而不是严格相等，理由见 [`TRANSLATION_TOLERANCE_MS`]。
+/// 每条翻译最多贴一次，避免快速段落里一行翻译被相邻几行共用。
 pub fn attach_translations(lines: &mut [LyricLine], translations: &[LyricLine]) {
-    if translations.is_empty() {
+    let usable: Vec<&LyricLine> = translations
+        .iter()
+        .filter(|t| !is_placeholder_translation(&t.text))
+        .collect();
+
+    if usable.is_empty() {
         return;
     }
+
+    let mut used = vec![false; usable.len()];
+
     for line in lines.iter_mut() {
-        if let Some(found) = translations
+        let nearest = usable
             .iter()
-            .find(|t| t.start_ms == line.start_ms && !t.text.trim().is_empty())
-        {
-            line.translation = Some(found.text.clone());
+            .enumerate()
+            .filter(|(index, t)| {
+                !used[*index] && (t.start_ms - line.start_ms).abs() <= TRANSLATION_TOLERANCE_MS
+            })
+            .min_by_key(|(_, t)| (t.start_ms - line.start_ms).abs())
+            .map(|(index, t)| (index, t.text.clone()));
+
+        if let Some((index, text)) = nearest {
+            used[index] = true;
+            line.translation = Some(text);
         }
     }
 }

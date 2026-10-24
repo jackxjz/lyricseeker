@@ -12,9 +12,19 @@ use crate::model::{AppError, LyricsDoc, Source};
 
 const CACHE_TTL_SECS: u64 = 24 * 60 * 60;
 
+/// 缓存结构版本。改了取词/解析逻辑导致旧结果不再可信时递增，
+/// 旧文件会在读取时被当作未命中并删除。
+///
+/// v2：补齐翻译（QQ 改用容差匹配，酷狗新增 KRC `[language:]` 解析），
+/// v1 存下的文档整首几乎没有译文，必须让它们失效。
+const CACHE_SCHEMA: u32 = 2;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CacheEntry {
+    /// 旧文件没有这个字段，`serde` 会补 0，因此一定被判为过期。
+    #[serde(default)]
+    schema: u32,
     fetched_at: u64,
     doc: LyricsDoc,
 }
@@ -55,11 +65,16 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// 读缓存；过期或损坏都当作未命中。
+/// 读缓存；过期、版本不符或损坏都当作未命中。
 pub fn load(source: Source, song_id: &str) -> Option<LyricsDoc> {
     let path = entry_path(source, song_id);
     let raw = fs::read_to_string(&path).ok()?;
     let entry: CacheEntry = serde_json::from_str(&raw).ok()?;
+
+    if entry.schema != CACHE_SCHEMA {
+        let _ = fs::remove_file(&path);
+        return None;
+    }
 
     if now_secs().saturating_sub(entry.fetched_at) > CACHE_TTL_SECS {
         // 过期即删，避免目录长期膨胀。
@@ -88,6 +103,7 @@ fn try_save(doc: &LyricsDoc) -> Result<(), AppError> {
     stored.from_cache = false;
 
     let entry = CacheEntry {
+        schema: CACHE_SCHEMA,
         fetched_at: now_secs(),
         doc: stored,
     };
@@ -148,5 +164,41 @@ mod tests {
         let path = entry_path(Source::Qq, "0039MnYb0qxYhV");
         assert!(path.starts_with(cache_dir()));
         assert!(path.to_string_lossy().ends_with("qq-0039MnYb0qxYhV.json"));
+    }
+
+    #[test]
+    fn legacy_entry_without_schema_is_rejected() {
+        // 修复翻译之前写下的缓存没有 schema 字段，必须被当作未命中。
+        let legacy = r#"{"fetchedAt":9999999999,"doc":{"song":{"source":"qq","songId":"x","numericId":null,"title":"t","artists":[],"album":"","durationMs":null},"rawFmt":"qrc","lines":[],"wordSynced":true,"fromCache":false,"notice":null}}"#;
+        let entry: CacheEntry = serde_json::from_str(legacy).expect("字段缺失也应能解析");
+        assert_eq!(entry.schema, 0);
+        assert_ne!(entry.schema, CACHE_SCHEMA, "旧缓存必须被判为过期");
+    }
+
+    #[test]
+    fn saved_entry_round_trips_with_current_schema() {
+        let entry = CacheEntry {
+            schema: CACHE_SCHEMA,
+            fetched_at: now_secs(),
+            doc: LyricsDoc {
+                song: crate::model::SongCandidate {
+                    source: Source::Kugou,
+                    song_id: "hash".into(),
+                    numeric_id: None,
+                    title: "歌".into(),
+                    artists: vec!["唱".into()],
+                    album: String::new(),
+                    duration_ms: Some(1000),
+                },
+                raw_fmt: "krc".into(),
+                lines: Vec::new(),
+                word_synced: true,
+                from_cache: false,
+                notice: None,
+            },
+        };
+        let text = serde_json::to_string(&entry).unwrap();
+        let back: CacheEntry = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.schema, CACHE_SCHEMA);
     }
 }

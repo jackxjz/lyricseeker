@@ -64,7 +64,11 @@ pub async fn fetch_lyrics(
         }
         Source::Kugou => {
             let raw = kugou::fetch_lyrics(&candidate).await?;
-            lyrics::parse_kugou(&raw.text, raw.word_synced)
+            let mut parsed = lyrics::parse_kugou(&raw.text, raw.word_synced);
+            if let Some(translations) = raw.translation_lines.as_deref() {
+                lyrics::attach_translation_lines(&mut parsed, translations);
+            }
+            parsed
         }
     };
 

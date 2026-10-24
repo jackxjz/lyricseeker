@@ -160,7 +160,8 @@ fn split_artists(raw: &str) -> Vec<String> {
 pub struct RawLyrics {
     pub text: String,
     pub word_synced: bool,
-    pub translation: Option<String>,
+    /// 译文，**按行下标**对齐（酷狗 KRC 的 `[language:]` 就是这么给的）。
+    pub translation_lines: Option<Vec<String>>,
 }
 
 impl RawLyrics {
@@ -168,7 +169,7 @@ impl RawLyrics {
         Self {
             word_synced: false,
             text,
-            translation: None,
+            translation_lines: None,
         }
     }
 }
@@ -284,11 +285,14 @@ fn decode_payload(encoded: &str, fmt: Option<&str>) -> Result<RawLyrics, AppErro
 
     if bytes.starts_with(b"krc1") {
         return match decrypt_krc(encoded.trim()) {
-            Some(text) => Ok(RawLyrics {
-                text,
-                word_synced: true,
-                translation: None,
-            }),
+            Some(text) => {
+                let translation_lines = extract_language_lines(&text);
+                Ok(RawLyrics {
+                    text,
+                    word_synced: true,
+                    translation_lines,
+                })
+            }
             None => Err(AppError::parse("酷狗逐字歌词解密失败")),
         };
     }
@@ -300,6 +304,59 @@ fn decode_payload(encoded: &str, fmt: Option<&str>) -> Result<RawLyrics, AppErro
     }
     let _ = fmt;
     Ok(RawLyrics::plain(text))
+}
+
+/// 从 KRC 正文里抽出译文行。
+///
+/// KRC 会在正文里塞一行 `[language:<base64>]`，base64 解出来是 JSON：
+///
+/// ```json
+/// {"content":[{"language":0,"type":1,
+///   "lyricContent":[["译文第0行"],["译文第1行"]]}],"version":1}
+/// ```
+///
+/// - `type == 1` 是译文，`type == 0` 是罗马音（日文歌才有，不要混进来）。
+/// - `lyricContent` 的**外层下标就是主歌词的行号**，与时间戳无关，
+///   所以不需要像 QQ 那样做容差匹配，直接按下标贴。
+/// - 每行是「文本片段」的数组，拼起来才是整行。
+///
+/// 拿不到译文时返回 `None`，让调用方走「没有翻译」的正常分支。
+fn extract_language_lines(text: &str) -> Option<Vec<String>> {
+    let encoded = text
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("[language:")?.strip_suffix(']'))?;
+
+    let bytes = BASE64.decode(encoded.trim()).ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+
+    let entries = json.get("content")?.as_array()?;
+
+    let translated = entries
+        .iter()
+        .find(|entry| entry.get("type").and_then(|value| value.as_i64()) == Some(1))?;
+
+    let lines: Vec<String> = translated
+        .get("lyricContent")?
+        .as_array()?
+        .iter()
+        .map(|parts| {
+            parts
+                .as_array()
+                .map(|fragments| {
+                    fragments
+                        .iter()
+                        .filter_map(|fragment| fragment.as_str())
+                        .collect::<String>()
+                })
+                .unwrap_or_default()
+        })
+        .collect();
+
+    if lines.iter().all(|line| line.trim().is_empty()) {
+        return None;
+    }
+
+    Some(lines)
 }
 
 /// 优先按 UTF-8 解码（自动去 BOM），失败时按 GB18030 兜底。
@@ -403,5 +460,46 @@ mod tests {
         let encoded = BASE64.encode(&bytes);
         let result = decode_payload(&encoded, Some("lrc")).unwrap();
         assert!(result.text.contains("晴天"));
+    }
+
+    /// 构造一行 KRC 的 `[language:<base64>]`。
+    fn language_line(json: &str) -> String {
+        format!("[language:{}]", BASE64.encode(json.as_bytes()))
+    }
+
+    #[test]
+    fn extracts_translation_lines_in_index_order() {
+        let payload = format!(
+            "[ti:test]\n{}\n[0,1000]<0,100,0>a",
+            language_line(
+                r#"{"content":[{"language":0,"type":1,"lyricContent":[["第一行"],["第二行","尾巴"]]}],"version":1}"#
+            )
+        );
+
+        let lines = extract_language_lines(&payload).expect("应解析出译文");
+        assert_eq!(lines, vec!["第一行".to_string(), "第二行尾巴".to_string()]);
+    }
+
+    #[test]
+    fn rome_entries_are_not_mistaken_for_translation() {
+        // type=0 是罗马音，不能当译文用。
+        let payload = language_line(
+            r#"{"content":[{"language":0,"type":0,"lyricContent":[["romaji"]]}],"version":1}"#,
+        );
+        assert!(extract_language_lines(&payload).is_none());
+    }
+
+    #[test]
+    fn krc_without_language_line_yields_no_translation() {
+        // 中文歌通常没有 [language:]，不能报错。
+        assert!(extract_language_lines("[ti:晴天]\n[0,1000]<0,100,0>晴").is_none());
+    }
+
+    #[test]
+    fn all_empty_translation_array_is_dropped() {
+        let payload = language_line(
+            r#"{"content":[{"language":0,"type":1,"lyricContent":[[""],[" "]]}],"version":1}"#,
+        );
+        assert!(extract_language_lines(&payload).is_none());
     }
 }
