@@ -3,7 +3,7 @@
 Windows 上的逐字歌词检索工具。搜歌名或歌手，从 **QQ 音乐** 与 **酷狗音乐** 同时取词，
 支持按「逐字歌词」或「逐行歌词」一键复制到剪贴板。
 
-![界面预览](docs/screenshot-kugou.png)
+![界面预览](docs/screenshot-main.png)
 
 ## 功能
 
@@ -72,6 +72,7 @@ src/                     前端
   types.ts               数据模型与常量
   App.tsx                主状态机 + 快捷键
   components/            SearchBar / SongList / LyricPreview / CopyBar / StatusBar / Toast
+                         SettingsPage（设置页）/ Icons（内联 SVG 图标）
   styles.css             深色主题
 src-tauri/               后端
   src/model.rs           AppError / Source / SongCandidate / LyricLine / LyricsDoc
@@ -93,6 +94,15 @@ cd src-tauri
 cargo test                                        # 41 个单元测试
 cargo test --test live -- --ignored --nocapture   # 联网端到端（真实打 QQ/酷狗）
 cargo test --test compare -- --ignored --nocapture # 与 LDDC 范例文件逐字节比对
+```
+
+界面验收用 CDP 驱动真实 WebView2（先以 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` 启动 exe）：
+
+```powershell
+node scripts/e2e-settings.mjs                      # 设置页 10 项检查
+node scripts/e2e-persist.mjs verify                # 设置持久化（需先 set 再重启）
+node scripts/cdp-shot.mjs docs/screenshot.png      # 截图（走 Page.captureScreenshot）
+node scripts/cdp-shot.mjs out.png settings         # 连同设置页一起截
 ```
 
 ## 已知限制
