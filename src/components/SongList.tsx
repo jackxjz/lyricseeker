@@ -1,21 +1,31 @@
-import type { SongCandidate } from "../types";
+import type { SongCandidate, Source } from "../types";
 import { formatDuration, SOURCE_LABEL } from "../types";
 
 interface Props {
   results: SongCandidate[];
   selected: SongCandidate | null;
   busy: boolean;
+  /** 只用来生成空列表的提示文案，关掉的源不该出现在说明里。 */
+  enabledSources: Source[];
   onPick: (candidate: SongCandidate) => void;
 }
 
-export function SongList({ results, selected, busy, onPick }: Props) {
+export function SongList({ results, selected, busy, enabledSources, onPick }: Props) {
   if (results.length === 0) {
+    const names = enabledSources.map((source) => SOURCE_LABEL[source]);
+    const scope =
+      names.length === 0
+        ? ""
+        : names.length === 1
+          ? `将在${names[0]}中检索，`
+          : `${names.join("与")}会同时检索，`;
     return (
       <section className="pane list-pane">
         <div className="empty">
           <p className="empty-title">还没有搜索结果</p>
           <p className="empty-hint">
-            输入歌名或歌手后回车。QQ 音乐与酷狗同时检索，选中条目即可看到逐字歌词。
+            输入歌名或歌手后回车。{scope}
+            选中条目即可看到逐字歌词。
           </p>
         </div>
       </section>

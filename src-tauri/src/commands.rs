@@ -11,19 +11,49 @@ use crate::providers::{self, kugou, qq};
 /// 搜索结果上限：单端最多返回 30 条，足够用户挑选。
 const MAX_RESULTS: usize = 30;
 
-/// 搜索歌曲。`source` 为 `"qq"` / `"kugou"` / `"all"`（或空 = 全部）。
+/// 搜索歌曲。
+///
+/// - `source`：主页 tab 的选择，`"qq"` / `"kugou"` / `"all"`（或空 = 全部）。
+/// - `enabled_sources`：设置页里打开的歌词源。关掉的源即使 tab 选了也不会请求。
+///
+/// 两者取交集；交集为空时报出可读的错误，而不是静默返回空列表。
 #[tauri::command]
 pub async fn search(
     source: String,
     keyword: String,
     limit: Option<u32>,
+    enabled_sources: Option<Vec<String>>,
 ) -> Result<Vec<SongCandidate>, AppError> {
-    let parsed_source = if source.trim().is_empty() || source.eq_ignore_ascii_case("all") {
-        None
+    let all_enabled = enabled_sources.unwrap_or_else(|| {
+        vec![Source::Qq.as_str().to_string(), Source::Kugou.as_str().to_string()]
+    });
+    let enabled: Vec<Source> = all_enabled
+        .iter()
+        .filter_map(|name| Source::parse(name))
+        .collect();
+
+    if enabled.is_empty() {
+        return Err(AppError::new(
+            "Config",
+            "所有歌词源都已关闭，请在设置里至少开启一个",
+        ));
+    }
+
+    let sources: Vec<Source> = if source.trim().is_empty() || source.eq_ignore_ascii_case("all") {
+        enabled.clone()
     } else {
-        Some(Source::parse(&source).ok_or_else(|| {
-            AppError::new("Config", format!("未知的音乐来源：{source}"))
-        })?)
+        let picked = Source::parse(&source)
+            .ok_or_else(|| AppError::new("Config", format!("未知的音乐来源：{source}")))?;
+        if !enabled.contains(&picked) {
+            return Err(AppError::new(
+                "Config",
+                format!(
+                    "{} 已在设置里关闭，请先在设置里开启或切换到其它来源",
+                    picked.label()
+                ),
+            ));
+        }
+        vec![picked]
     };
 
     let limit = limit
@@ -31,7 +61,7 @@ pub async fn search(
         .unwrap_or(MAX_RESULTS)
         .clamp(1, MAX_RESULTS);
 
-    let mut results = providers::search(parsed_source, &keyword, limit).await?;
+    let mut results = providers::search(sources, &keyword, limit).await?;
     results.truncate(limit);
     Ok(results)
 }
@@ -133,13 +163,20 @@ pub fn clear_cache() -> Result<u64, AppError> {
 pub struct CacheInfo {
     pub location: String,
     pub ttl_seconds: u64,
+    /// 当前占用字节数。
+    pub bytes: u64,
+    /// 条目数。
+    pub files: u64,
 }
 
 #[tauri::command]
 pub fn cache_info() -> CacheInfo {
+    let stats = cache::stats();
     CacheInfo {
         location: cache::location(),
         ttl_seconds: cache::TTL_SECS,
+        bytes: stats.bytes,
+        files: stats.files,
     }
 }
 

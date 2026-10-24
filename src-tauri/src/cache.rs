@@ -134,6 +134,37 @@ pub fn clear() -> Result<u64, AppError> {
     Ok(removed)
 }
 
+/// 缓存占用统计，供设置页展示「现在占了多少空间」。
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheStats {
+    pub bytes: u64,
+    pub files: u64,
+}
+
+/// 统计缓存目录里所有 `.json` 条目的大小与数量。
+///
+/// 目录不存在视为 0：用户清过缓存或从没用过都是正常状态，不是错误。
+pub fn stats() -> CacheStats {
+    let dir = cache_dir();
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return CacheStats { bytes: 0, files: 0 };
+    };
+
+    let mut bytes = 0u64;
+    let mut files = 0u64;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "json") {
+            if let Ok(metadata) = entry.metadata() {
+                bytes += metadata.len();
+                files += 1;
+            }
+        }
+    }
+    CacheStats { bytes, files }
+}
+
 /// 供「缓存位置」提示使用。
 pub fn location() -> String {
     cache_dir().to_string_lossy().to_string()

@@ -490,50 +490,162 @@ input[type="search"]::-webkit-search-cancel-button {
   flex-shrink: 0;
 }
 
-.options-panel {
-  position: absolute;
-  right: 12px;
-  bottom: calc(100% + 6px);
-  width: 302px;
-  padding: 10px;
-  background: var(--bg-active);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  z-index: 10;
+/* ---------- 设置页 ---------- */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 12, 0.62);
+  backdrop-filter: blur(2px);
+  z-index: 40;
 }
 
-.option-row {
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100% - 48px));
+  max-height: calc(100% - 64px);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-body {
+  overflow-y: auto;
+  padding: 6px 18px 18px;
+}
+
+.settings-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+
+.settings-section h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.settings-desc {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.settings-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 5px 4px;
-  border-radius: 6px;
+  gap: 9px;
+  padding: 7px 6px;
+  border-radius: 7px;
   cursor: pointer;
 }
 
-.option-row:hover {
+.settings-row:hover {
   background: var(--bg-hover);
 }
 
-.option-row input {
+.settings-row input {
   margin-top: 2px;
   accent-color: var(--accent);
+  flex-shrink: 0;
 }
 
-.option-text {
+.settings-label {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
   min-width: 0;
 }
 
-.option-label {
-  font-size: 12.5px;
+.settings-label em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.45;
 }
 
-.option-hint {
-  color: var(--text-faint);
+.settings-warn {
+  margin: 8px 0 0;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: rgba(255, 107, 107, 0.12);
+  color: var(--error);
+  font-size: 11.5px;
+}
+
+.settings-cache {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.cache-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cache-meta strong {
+  font-size: 16px;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.cache-meta span {
   font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.ghost.danger {
+  color: var(--error);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+button.ghost.danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.12);
 }
 
 /* ---------- 状态栏 ---------- */

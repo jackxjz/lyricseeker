@@ -50,8 +50,11 @@ pub fn map_http_error(context: &str, error: reqwest::Error) -> AppError {
 }
 
 /// 按来源搜索歌曲。
+///
+/// `sources` 为空表示「所有来源」；用户在设置里关掉某个源后，前端只
+/// 传剩下的那些，被关掉的源根本不会被请求（关闭 = 不发请求，省流量也不报错）。
 pub async fn search(
-    source: Option<Source>,
+    sources: Vec<Source>,
     keyword: &str,
     limit: usize,
 ) -> Result<Vec<SongCandidate>, AppError> {
@@ -60,11 +63,18 @@ pub async fn search(
         return Ok(Vec::new());
     }
 
-    match source {
-        Some(Source::Qq) => qq::search(keyword, limit).await,
-        Some(Source::Kugou) => kugou::search(keyword, limit).await,
-        None => {
-            // 全部来源并发；一侧失败不影响另一侧，只有两侧都失败才报错。
+    let want_qq = sources.is_empty() || sources.contains(&Source::Qq);
+    let want_kugou = sources.is_empty() || sources.contains(&Source::Kugou);
+
+    match (want_qq, want_kugou) {
+        (false, false) => Err(AppError::new(
+            "Config",
+            "所有歌词源都已关闭，请在设置里至少开启一个",
+        )),
+        (true, false) => qq::search(keyword, limit).await,
+        (false, true) => kugou::search(keyword, limit).await,
+        (true, true) => {
+            // 两个来源并发；一侧失败不影响另一侧，只有两侧都失败才报错。
             let (qq_result, kugou_result) =
                 tokio::join!(qq::search(keyword, limit), kugou::search(keyword, limit));
             match (qq_result, kugou_result) {

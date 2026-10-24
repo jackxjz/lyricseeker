@@ -6,16 +6,23 @@ import type {
   GeneratedText,
   LyricsDoc,
   SongCandidate,
+  Source,
   SourceFilter,
 } from "./types";
 
-/** 搜索歌曲；`source` 传 "all" 时两端并发。 */
+/**
+ * 搜索歌曲。
+ *
+ * `source` 是主页 tab 的选择（`"all"` 表示不限定），`enabled` 是设置里
+ * 打开的源；两者由后端取交集，被关掉的源不会被请求。
+ */
 export function searchSongs(
   source: SourceFilter,
   keyword: string,
+  enabled: Source[],
   limit = 30,
 ): Promise<SongCandidate[]> {
-  return invoke<SongCandidate[]>("search", { source, keyword, limit });
+  return invoke<SongCandidate[]>("search", { source, keyword, limit, enabledSources: enabled });
 }
 
 /** 取歌词；命中缓存直接返回。 */

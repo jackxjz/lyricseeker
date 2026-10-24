@@ -193,7 +193,7 @@ async fn kugou_translation_is_mostly_complete() {
 #[tokio::test]
 #[ignore = "需要联网"]
 async fn aggregate_search_merges_both_sources() {
-    let results = lyricseeker_lib::providers::search(None, "晴天", 20)
+    let results = lyricseeker_lib::providers::search(vec![], "晴天", 20)
         .await
         .expect("聚合搜索应成功");
     assert!(!results.is_empty());
@@ -214,7 +214,7 @@ async fn nonsense_query_does_not_error() {
     // QQ 的搜索是模糊匹配，无意义关键词通常仍会返回一批「看起来相关」的结果，
     // 因此这里只断言「不报错」与「结果结构合法」，不假设一定为空。
     let results = lyricseeker_lib::providers::search(
-        Some(lyricseeker_lib::model::Source::Qq),
+        vec![lyricseeker_lib::model::Source::Qq],
         "zzzz不存在zzzz",
         10,
     )

@@ -60,13 +60,24 @@ export interface GeneratedText {
 export interface CacheInfo {
   location: string;
   ttlSeconds: number;
+  /** 当前占用字节数。 */
+  bytes: number;
+  /** 条目数。 */
+  files: number;
 }
 
+/**
+ * 复制的默认选项。
+ *
+ * 默认打开三项（翻译、元信息、空格）是用户的实际用法：拿到歌词后几乎
+ * 总是直接粘到播放器里，缺了翻译和标签就要手动补。「过滤制作信息」
+ * 默认关闭 —— 它是破坏性的，误开会让用户以为歌词丢了。
+ */
 export const DEFAULT_COPY_OPTIONS: CopyOptions = {
-  includeMetadata: false,
-  includeTranslation: false,
-  filterCredits: false,
+  includeTranslation: true,
+  includeMetadata: true,
   keepSpaces: true,
+  filterCredits: false,
 };
 
 export const SOURCE_LABEL: Record<Source, string> = {
@@ -75,11 +86,14 @@ export const SOURCE_LABEL: Record<Source, string> = {
 };
 
 export const FORMAT_LABEL: Record<CopyFormat, string> = {
-  enhanced: "逐字（增强 LRC）",
   plain: "逐字（普通 LRC）",
+  enhanced: "逐字（增强 LRC）",
   lrc: "逐行（带时间戳）",
   text: "纯文本",
 };
+
+/** 复制位的顺序：Ctrl+1..4 与界面按钮都用它，避免两处各写一份。 */
+export const FORMAT_ORDER: CopyFormat[] = ["plain", "enhanced", "lrc", "text"];
 
 /** 把毫秒格式化成 m:ss，用于候选列表展示。 */
 export function formatDuration(ms: number | null): string {

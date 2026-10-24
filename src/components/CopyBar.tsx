@@ -1,60 +1,38 @@
-import { useState } from "react";
-import type { CopyFormat, CopyOptions, LyricsDoc } from "../types";
-import { FORMAT_LABEL } from "../types";
+import type { CopyFormat, LyricsDoc } from "../types";
+import { FORMAT_LABEL, FORMAT_ORDER } from "../types";
 
 interface Props {
   doc: LyricsDoc | null;
-  options: CopyOptions;
   busy: boolean;
   disabled: boolean;
-  onOptionsChange: (options: CopyOptions) => void;
   onCopy: (formatName: CopyFormat) => void;
   onRefresh: () => void;
-  onClearCache: () => void;
-  cacheLocation: string | null;
+  onOpenSettings: () => void;
 }
 
-const FORMATS: { value: CopyFormat; hint: string; shortcut: string }[] = [
-  { value: "enhanced", hint: "[行]‹字›字…‹行尾›", shortcut: "Ctrl+1" },
-  { value: "plain", hint: "[行]字[字]字…[行尾]", shortcut: "Ctrl+2" },
-  { value: "lrc", hint: "标准 LRC，一行一条", shortcut: "Ctrl+3" },
-  { value: "text", hint: "不带任何时间标记", shortcut: "Ctrl+4" },
-];
+/** hint 展示时间标签的形态，让人一眼看出两种逐字的区别。 */
+const FORMAT_HINTS: Record<CopyFormat, string> = {
+  plain: "[行]字[字]字…[行尾]",
+  enhanced: "[行]‹字›字…‹行尾›",
+  lrc: "标准 LRC，一行一条",
+  text: "不带任何时间标记",
+};
 
-const OPTION_LABELS: { key: keyof CopyOptions; label: string; hint: string }[] = [
-  { key: "includeMetadata", label: "含 [ti:]/[ar:]/[al:] 标签", hint: "把歌曲元信息写进复制内容" },
-  { key: "includeTranslation", label: "含翻译", hint: "把翻译行附在每行原词后" },
-  { key: "filterCredits", label: "过滤「词/曲/编曲」等制作信息", hint: "去掉开头的制作人员名单" },
-  { key: "keepSpaces", label: "保留逐字中的空格", hint: "关闭后会把整行空白音节去掉" },
-];
-
-export function CopyBar({
-  doc,
-  options,
-  busy,
-  disabled,
-  onOptionsChange,
-  onCopy,
-  onRefresh,
-  onClearCache,
-  cacheLocation,
-}: Props) {
-  const [showOptions, setShowOptions] = useState(false);
-
+export function CopyBar({ doc, busy, disabled, onCopy, onRefresh, onOpenSettings }: Props) {
   return (
     <footer className="copybar">
       <div className="copy-buttons">
-        {FORMATS.map((format) => (
+        {FORMAT_ORDER.map((format, index) => (
           <button
-            key={format.value}
+            key={format}
             type="button"
             className="copy-button"
             disabled={disabled || busy}
-            title={`${format.hint} · ${format.shortcut}`}
-            onClick={() => onCopy(format.value)}
+            title={`${FORMAT_HINTS[format]} · Ctrl+${index + 1}`}
+            onClick={() => onCopy(format)}
           >
-            <span className="copy-label">{FORMAT_LABEL[format.value]}</span>
-            <span className="copy-shortcut">{format.shortcut}</span>
+            <span className="copy-label">{FORMAT_LABEL[format]}</span>
+            <span className="copy-shortcut">Ctrl+{index + 1}</span>
           </button>
         ))}
       </div>
@@ -62,50 +40,17 @@ export function CopyBar({
       <div className="copy-side">
         <button
           type="button"
-          className={showOptions ? "ghost active" : "ghost"}
-          disabled={disabled}
-          onClick={() => setShowOptions(!showOptions)}
-        >
-          选项
-        </button>
-        <button
-          type="button"
           className="ghost"
-          disabled={!doc || busy}
           title="忽略缓存，重新向上游请求"
+          disabled={!doc || busy}
           onClick={onRefresh}
         >
           重新获取
         </button>
-        <button
-          type="button"
-          className="ghost"
-          title={cacheLocation ? `缓存目录：${cacheLocation}` : "清除本地歌词缓存"}
-          onClick={onClearCache}
-        >
-          清缓存
+        <button type="button" className="ghost" title="复制选项与缓存管理" onClick={onOpenSettings}>
+          设置
         </button>
       </div>
-
-      {showOptions ? (
-        <div className="options-panel">
-          {OPTION_LABELS.map((option) => (
-            <label key={option.key} className="option-row">
-              <input
-                type="checkbox"
-                checked={options[option.key]}
-                onChange={(event) =>
-                  onOptionsChange({ ...options, [option.key]: event.target.checked })
-                }
-              />
-              <span className="option-text">
-                <span className="option-label">{option.label}</span>
-                <span className="option-hint">{option.hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      ) : null}
     </footer>
   );
 }

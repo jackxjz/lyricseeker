@@ -7,6 +7,7 @@
 //! 取回的密文经 `lyrics_crypto` 解出 XML，再从中取 `Lyric_1@LyricContent` 正文。
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -400,15 +401,37 @@ pub async fn debug_search_raw(keyword: &str, limit: usize) -> Result<String, App
 
 /// 搜索歌曲。`limit` 为本端截断数量。
 ///
-/// 移动端接口在短时间内连续请求会返回 `code: 2001`（风控屏蔽），此时退到桌面端
-/// 接口 `DoSearchForQQMusicDesktop`，它不受这条限制，字段结构也不同。
+/// QQ 的搜索接口按请求频次做风控，被挡时返回 `code: 2001` 且列表为空。移动端
+/// （`DoSearchForQQMusicMobile`）最容易被挡，桌面端（`DoSearchForQQMusicDesktop`）
+/// 命中率更高但同样会中招，而且挡一次、放一次地来回跳。
+///
+/// 所以策略是：先试移动端；被挡就换桌面端；桌面端也被挡就等一会儿再试一次。
+/// 三级都失败才报错 —— 报错比「返回空列表」诚实，后者会让人以为歌不存在。
 pub async fn search(keyword: &str, limit: usize) -> Result<Vec<SongCandidate>, AppError> {
     let limit = limit.clamp(1, 50);
 
     match search_mobile(keyword, limit).await {
+        Ok(found) if !found.is_empty() => return Ok(found),
+        Ok(_) => {}
+        Err(SearchFailure::Fatal(error)) => return Err(error),
+        Err(SearchFailure::Blocked) => {}
+    }
+
+    match search_desktop(keyword, limit).await {
+        Ok(found) if !found.is_empty() => return Ok(found),
+        Ok(_) => return Ok(Vec::new()),
+        Err(SearchFailure::Fatal(error)) => return Err(error),
+        // 桌面端被挡：等一小会儿再试，风控窗口通常只有几秒。
+        Err(SearchFailure::Blocked) => {}
+    }
+
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    match search_desktop(keyword, limit).await {
         Ok(found) => Ok(found),
-        Err(SearchFailure::Blocked) => search_desktop(keyword, limit).await.map_err(Into::into),
         Err(SearchFailure::Fatal(error)) => Err(error),
+        Err(SearchFailure::Blocked) => Err(AppError::upstream(
+            "QQ 音乐搜索被限流了，等几秒再试。酷狗那边不受影响。",
+        )),
     }
 }
 
@@ -510,7 +533,10 @@ async fn search_mobile(keyword: &str, limit: usize) -> Result<Vec<SongCandidate>
 }
 
 /// 桌面端搜索：结果在 `body.song.list`。
-async fn search_desktop(keyword: &str, limit: usize) -> Result<Vec<SongCandidate>, AppError> {
+async fn search_desktop(
+    keyword: &str,
+    limit: usize,
+) -> Result<Vec<SongCandidate>, SearchFailure> {
     let body = serde_json::json!({
         "comm": {
             "ct": "19",
@@ -535,19 +561,27 @@ async fn search_desktop(keyword: &str, limit: usize) -> Result<Vec<SongCandidate
         .json(&body)
         .send()
         .await
-        .map_err(|error| map_http_error("QQ 音乐搜索（桌面端）", error))?;
+        .map_err(|error| SearchFailure::Fatal(map_http_error("QQ 音乐搜索（桌面端）", error)))?;
 
     if !response.status().is_success() {
-        return Err(AppError::upstream(format!(
+        return Err(SearchFailure::Fatal(AppError::upstream(format!(
             "QQ 音乐搜索返回 HTTP {}",
             response.status().as_u16()
-        )));
+        ))));
     }
 
-    let parsed: DesktopResponse = response
-        .json()
-        .await
-        .map_err(|error| AppError::parse(format!("QQ 音乐搜索响应解析失败：{error}")))?;
+    let parsed: DesktopResponse = response.json().await.map_err(|error| {
+        SearchFailure::Fatal(AppError::parse(format!(
+            "QQ 音乐搜索响应解析失败：{error}"
+        )))
+    })?;
+
+    // 桌面端同样有 2001 风控，只是命中率低一些。
+    if let Some(request) = parsed.req.as_ref() {
+        if request.code == Some(BLOCKED_CODE) {
+            return Err(SearchFailure::Blocked);
+        }
+    }
 
     let songs = parsed
         .req
