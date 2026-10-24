@@ -47,7 +47,7 @@ async fn qq_end_to_end() {
     let doc = lyricseeker_lib::lyrics::into_doc(target.clone(), parsed);
 
     // 四种格式都要能产出非空文本。
-    for name in ["enhanced", "raw", "lrc", "text"] {
+    for name in ["enhanced", "plain", "lrc", "text"] {
         let text = generate(&doc, name, &options()).expect("格式应被识别");
         assert!(!text.trim().is_empty(), "{name} 不应为空");
         println!(
@@ -56,13 +56,17 @@ async fn qq_end_to_end() {
         );
     }
 
-    // 逐字格式必须真的带每字标记。
+    // 逐字格式必须真的带每字标记，且行尾以末字的结束时间收口。
     let enhanced = generate(&doc, "enhanced", &options()).unwrap();
     assert!(enhanced.contains('<'), "增强 LRC 应含 <> 逐字标记");
-    let raw_fmt = generate(&doc, "raw", &options()).unwrap();
-    assert!(raw_fmt.contains('('), "原始记号应含 () 逐字时间");
-    let plain = generate(&doc, "lrc", &options()).unwrap();
-    assert!(!plain.contains('<'), "逐行 LRC 不应含逐字标记");
+    let plain = generate(&doc, "plain", &options()).unwrap();
+    assert!(plain.contains('['), "普通逐字应含 [] 逐字时间");
+    assert!(
+        !plain.lines().next().unwrap().contains('<'),
+        "普通逐字不应含尖括号"
+    );
+    let lrc = generate(&doc, "lrc", &options()).unwrap();
+    assert!(!lrc.contains('<'), "逐行 LRC 不应含逐字标记");
 }
 
 #[tokio::test]

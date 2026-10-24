@@ -158,7 +158,7 @@ export default function App() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (!event.ctrlKey) return;
-      const formats: CopyFormat[] = ["enhanced", "raw", "lrc", "text"];
+      const formats: CopyFormat[] = ["enhanced", "plain", "lrc", "text"];
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < formats.length) {
         event.preventDefault();

@@ -4,7 +4,7 @@
 export type Source = "qq" | "kugou";
 export type SourceFilter = Source | "all";
 export type RawFmt = "qrc" | "krc" | "lrc";
-export type CopyFormat = "enhanced" | "raw" | "lrc" | "text";
+export type CopyFormat = "enhanced" | "plain" | "lrc" | "text";
 
 export interface SongCandidate {
   source: Source;
@@ -76,7 +76,7 @@ export const SOURCE_LABEL: Record<Source, string> = {
 
 export const FORMAT_LABEL: Record<CopyFormat, string> = {
   enhanced: "逐字（增强 LRC）",
-  raw: "逐字（原始记号）",
+  plain: "逐字（普通 LRC）",
   lrc: "逐行（带时间戳）",
   text: "纯文本",
 };

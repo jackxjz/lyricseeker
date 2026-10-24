@@ -31,7 +31,7 @@ await send("Runtime.enable");
 
 for (const [key, code, kc, label] of [
   ["1", "Digit1", 49, "逐字增强 LRC"],
-  ["2", "Digit2", 50, "逐字原始记号"],
+  ["2", "Digit2", 50, "逐字普通 LRC"],
   ["3", "Digit3", 51, "逐行带时间戳"],
   ["4", "Digit4", 52, "纯文本"],
 ]) {

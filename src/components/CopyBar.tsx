@@ -15,8 +15,8 @@ interface Props {
 }
 
 const FORMATS: { value: CopyFormat; hint: string; shortcut: string }[] = [
-  { value: "enhanced", hint: "行时间戳 + 每字 <mm:ss.mmm>", shortcut: "Ctrl+1" },
-  { value: "raw", hint: "平台原始逐字记号（QRC / KRC）", shortcut: "Ctrl+2" },
+  { value: "enhanced", hint: "[行]‹字›字…‹行尾›", shortcut: "Ctrl+1" },
+  { value: "plain", hint: "[行]字[字]字…[行尾]", shortcut: "Ctrl+2" },
   { value: "lrc", hint: "标准 LRC，一行一条", shortcut: "Ctrl+3" },
   { value: "text", hint: "不带任何时间标记", shortcut: "Ctrl+4" },
 ];
