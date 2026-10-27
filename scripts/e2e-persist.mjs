@@ -48,10 +48,12 @@ const snapshot = `(function () {
   };
   var lyric = find('歌词');
   var rows = Array.prototype.slice.call(lyric.querySelectorAll('.settings-row'));
+  var trans = find('翻译');
   return JSON.stringify({
     copy: rows.map(function (r) {
       return { label: r.querySelector('.settings-label').firstChild.textContent.trim(), on: r.querySelector('input').checked };
     }),
+    translationLayout: trans ? (trans.querySelector('input[type=radio]:checked') || {}).value || null : null,
     tabs: Array.prototype.slice.call(document.querySelectorAll('.source-tabs .tab')).map(function (t) { return t.textContent.trim(); })
   });
 })()`;
@@ -76,6 +78,9 @@ if (STEP === "set") {
       if (kugou.querySelector('input').checked) kugou.querySelector('input').click();
       var filter = Array.prototype.slice.call(find('歌词').querySelectorAll('.settings-row')).filter(function (r) { return r.textContent.indexOf('过滤') >= 0; })[0];
       if (!filter.querySelector('input').checked) filter.querySelector('input').click();
+      // 翻译摆放方式也一起改掉：非默认值（第 3 种「译文在上」）才证明写盘生效。
+      var before = find('翻译').querySelector('input[value=before]');
+      if (before && !before.disabled && !before.checked) before.click();
     })()`,
   );
   await sleep(800);

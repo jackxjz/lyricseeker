@@ -12,10 +12,12 @@ import type {
   CacheInfo,
   CopyFormat,
   CopyOptions,
+  CopyToggleKey,
   LyricsDoc,
   SongCandidate,
   Source,
   SourceFilter,
+  TranslationLayout,
 } from "./types";
 import { describeError, FORMAT_LABEL, FORMAT_ORDER } from "./types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings } from "./settings";
@@ -197,11 +199,19 @@ export default function App() {
     });
   }, []);
 
-  const toggleCopy = useCallback((key: keyof CopyOptions) => {
+  const toggleCopy = useCallback((key: CopyToggleKey) => {
     dirty.current = true;
     setSettings((current) => ({
       ...current,
       copy: { ...current.copy, [key]: !current.copy[key] } as CopyOptions,
+    }));
+  }, []);
+
+  const selectTranslation = useCallback((layout: TranslationLayout) => {
+    dirty.current = true;
+    setSettings((current) => ({
+      ...current,
+      copy: { ...current.copy, translationLayout: layout },
     }));
   }, []);
 
@@ -310,6 +320,7 @@ export default function App() {
           cacheBusy={cacheBusy}
           onToggleSource={toggleSource}
           onToggleCopy={toggleCopy}
+          onSelectTranslation={selectTranslation}
           onClearCache={() => void doClearCache()}
           onClose={() => setSettingsOpen(false)}
         />

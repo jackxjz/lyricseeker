@@ -107,12 +107,69 @@ async function run() {
   check("默认勾选 翻译/元信息/空格", copyItems[0].checked && copyItems[1].checked && copyItems[2].checked);
   check("默认不勾选 过滤制作信息", copyItems[3].checked === false);
 
-  // 3. 三个段落顺序：词源 → 歌词 → 缓存
+  // 3. 四个段落顺序：词源 → 歌词 → 翻译 → 缓存
   const headings = await evaluate(
     `[...document.querySelectorAll('.settings-section h3')].map(h => h.textContent)`,
   );
   console.log("段落顺序:", JSON.stringify(headings));
-  check("段落顺序 词源→歌词→缓存", headings.join(",") === "词源,歌词,缓存");
+  check("段落顺序 词源→歌词→翻译→缓存", headings.join(",") === "词源,歌词,翻译,缓存");
+
+  // 3b. 翻译板块：四个单选水平铺开、默认选中第 2 种、关掉带翻译后整体置灰
+  const trans = await evaluate(`
+    (() => {
+      const s = [...document.querySelectorAll('.settings-section')].find(s => s.querySelector('h3')?.textContent === '翻译');
+      if (!s) return { missing: true };
+      const radios = [...s.querySelectorAll('input[type=radio]')];
+      const labels = [...s.querySelectorAll('.layout-row')];
+      const top = labels.map(l => Math.round(l.getBoundingClientRect().top));
+      return {
+        count: radios.length,
+        values: radios.map(r => r.value),
+        checked: radios.find(r => r.checked)?.value ?? null,
+        disabled: radios.filter(r => r.disabled).length,
+        sameRow: new Set(top).size === 1,
+        gridColumns: getComputedStyle(s.querySelector('.settings-layouts')).gridTemplateColumns.split(' ').length,
+        hasWarn: !!s.querySelector('.settings-warn'),
+      };
+    })()
+  `);
+  console.log("翻译板块:", JSON.stringify(trans));
+  check("翻译板块有四个单选", trans.count === 4, JSON.stringify(trans.values));
+  check(
+    "翻译选项顺序 1..4",
+    trans.values?.join(",") === "sameLine,nextLine,before,interleaved",
+    JSON.stringify(trans.values),
+  );
+  check("默认选中第 2 种（原文在上）", trans.checked === "nextLine", trans.checked);
+  check("四个单选水平铺开（同一行 + 四列栅格）", trans.sameRow === true && trans.gridColumns === 4);
+  check("带翻译开着时单选可用", trans.disabled === 0, `disabled=${trans.disabled}`);
+
+  const greyed = await evaluate(`
+    (async () => {
+      const section = [...document.querySelectorAll('.settings-section')].find(s => s.querySelector('h3')?.textContent === '歌词');
+      const box = [...section.querySelectorAll('.settings-row')].find(r => r.textContent.includes('带翻译')).querySelector('input');
+      const was = box.checked;
+      if (was) box.click();
+      await new Promise(r => setTimeout(r, 260));
+      const s = [...document.querySelectorAll('.settings-section')].find(s => s.querySelector('h3')?.textContent === '翻译');
+      const radios = [...s.querySelectorAll('input[type=radio]')];
+      const out = {
+        sectionDisabled: s.classList.contains('is-disabled'),
+        ariaDisabled: s.getAttribute('aria-disabled'),
+        allRadiosDisabled: radios.every(r => r.disabled),
+        warn: s.querySelector('.settings-warn')?.textContent ?? null,
+      };
+      if (was) box.click();
+      await new Promise(r => setTimeout(r, 260));
+      out.restored = [...document.querySelectorAll('.settings-layouts input[type=radio]')].every(r => !r.disabled);
+      return out;
+    })()
+  `);
+  console.log("关掉带翻译后:", JSON.stringify(greyed));
+  check("取消「带翻译」后翻译板块置灰", greyed.sectionDisabled === true && greyed.allRadiosDisabled === true);
+  check("置灰时 aria-disabled 为 true", greyed.ariaDisabled === "true", greyed.ariaDisabled);
+  check("置灰时给出提示文案", typeof greyed.warn === "string" && greyed.warn.length > 0, greyed.warn);
+  check("重新勾选后单选恢复可用", greyed.restored === true);
 
   // 4. 缓存大小可读
   const cacheText = await evaluate(`

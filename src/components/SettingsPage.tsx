@@ -1,5 +1,10 @@
-import type { CopyOptions, Source } from "../types";
-import { SOURCE_LABEL } from "../types";
+import type { CopyOptions, CopyToggleKey, Source, TranslationLayout } from "../types";
+import {
+  SOURCE_LABEL,
+  TRANSLATION_LAYOUT_LABEL,
+  TRANSLATION_LAYOUT_ORDER,
+  TRANSLATION_LAYOUT_SAMPLE,
+} from "../types";
 import { formatBytes } from "../settings";
 
 interface SettingsPageProps {
@@ -10,7 +15,8 @@ interface SettingsPageProps {
   cacheLocation: string;
   cacheBusy: boolean;
   onToggleSource: (source: Source) => void;
-  onToggleCopy: (key: keyof CopyOptions) => void;
+  onToggleCopy: (key: CopyToggleKey) => void;
+  onSelectTranslation: (layout: TranslationLayout) => void;
   onClearCache: () => void;
   onClose: () => void;
 }
@@ -22,7 +28,7 @@ const SOURCE_HINTS: Record<Source, string> = {
 
 /** 「过滤制作信息」默认关闭：它会删掉「词：周杰伦」这类行，误开像丢歌词。 */
 const COPY_ITEMS: Array<{
-  key: keyof CopyOptions;
+  key: CopyToggleKey;
   label: string;
   hint: string;
 }> = [
@@ -45,6 +51,7 @@ export function SettingsPage({
   cacheBusy,
   onToggleSource,
   onToggleCopy,
+  onSelectTranslation,
   onClearCache,
   onClose,
 }: SettingsPageProps) {
@@ -107,6 +114,45 @@ export function SettingsPage({
                 </li>
               ))}
             </ul>
+          </section>
+
+          {/* 翻译板块紧跟在「歌词」下面：它管的是同一个开关的下一层细节，
+              放到别处会让人以为翻译是独立功能。关掉「带翻译」时整段置灰，
+              因为这时无论选哪种摆放都不会进入复制结果。 */}
+          <section
+            className={`settings-section${copy.includeTranslation ? "" : " is-disabled"}`}
+            aria-disabled={!copy.includeTranslation}
+          >
+            <h3>翻译</h3>
+            <p className="settings-desc">
+              决定译文摆在哪一行。这里选成什么样，复制出去就是什么样。
+            </p>
+            <ul className="settings-list settings-layouts">
+              {TRANSLATION_LAYOUT_ORDER.map((layout, index) => {
+                const disabled = !copy.includeTranslation;
+                return (
+                  <li key={layout}>
+                    <label className={`settings-row layout-row${disabled ? " is-disabled" : ""}`}>
+                      <input
+                        type="radio"
+                        name="translation-layout"
+                        value={layout}
+                        checked={copy.translationLayout === layout}
+                        disabled={disabled}
+                        onChange={() => onSelectTranslation(layout)}
+                      />
+                      <span className="settings-label">
+                        {index + 1}️⃣ {TRANSLATION_LAYOUT_LABEL[layout]}
+                        <em>{TRANSLATION_LAYOUT_SAMPLE[layout]}</em>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            {!copy.includeTranslation && (
+              <p className="settings-warn">先在上面勾选「带翻译」，这里才能选。</p>
+            )}
           </section>
 
           <section className="settings-section">

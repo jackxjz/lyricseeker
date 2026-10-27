@@ -6,8 +6,11 @@
 // - 缓存：只有「清理」一个动作，占用大小由后端 `cache_info` 实时给出
 
 import { LazyStore } from "@tauri-apps/plugin-store";
-import type { CopyOptions, Source } from "./types";
-import { DEFAULT_COPY_OPTIONS } from "./types";
+import type { CopyOptions, Source, TranslationLayout } from "./types";
+import {
+  DEFAULT_COPY_OPTIONS,
+  TRANSLATION_LAYOUT_ORDER,
+} from "./types";
 
 export interface Settings {
   /** 开启的歌词源。空数组视为「用户把全部关掉了」，由界面提示至少开一个。 */
@@ -34,7 +37,7 @@ export async function loadSettings(): Promise<Settings> {
     const copy = await store.get<CopyOptions>("copy");
     return {
       enabledSources: normalizeSources(enabled),
-      copy: { ...DEFAULT_COPY_OPTIONS, ...(copy ?? {}) },
+      copy: { ...DEFAULT_COPY_OPTIONS, ...(copy ?? {}), translationLayout: normalizeLayout((copy ?? {}).translationLayout) },
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -56,6 +59,13 @@ function normalizeSources(value: unknown): Source[] {
   if (!Array.isArray(value)) return DEFAULT_SETTINGS.enabledSources;
   const known: Source[] = ["qq", "kugou"];
   return known.filter((source) => value.includes(source));
+}
+
+/** 老版本设置文件没有 `translationLayout`，或写坏了 —— 一律退回默认的第 2 种。 */
+function normalizeLayout(value: unknown): TranslationLayout {
+  return TRANSLATION_LAYOUT_ORDER.includes(value as TranslationLayout)
+    ? (value as TranslationLayout)
+    : DEFAULT_COPY_OPTIONS.translationLayout;
 }
 
 /** 把字节数格式化成便于阅读的大小，例如 `1.2 MB`。 */

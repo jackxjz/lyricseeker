@@ -44,12 +44,49 @@ export interface AppError {
   message: string;
 }
 
+/**
+ * 译文在复制结果里的摆放方式，与 Rust 侧 `TranslationLayout` 一一对应。
+ *
+ * - `sameLine`    `[t]原词 译文`
+ * - `nextLine`    `[t]原词` 换行 `[t]译文`（默认）
+ * - `before`      `[t]译文` 换行 `[t]原词`
+ * - `interleaved` `[t]原词` 换行 `[下一行 t]译文`
+ */
+export type TranslationLayout = "sameLine" | "nextLine" | "before" | "interleaved";
+
 export interface CopyOptions {
   includeMetadata: boolean;
   includeTranslation: boolean;
   filterCredits: boolean;
   keepSpaces: boolean;
+  translationLayout: TranslationLayout;
 }
+
+/** 可以「点一下取反」的开关项。`translationLayout` 是单选，不在此列。 */
+export type CopyToggleKey = Exclude<keyof CopyOptions, "translationLayout">;
+
+/** 翻译板块的单选项，顺序即界面顺序（1️⃣2️⃣3️⃣4️⃣）。 */
+export const TRANSLATION_LAYOUT_ORDER: TranslationLayout[] = [
+  "sameLine",
+  "nextLine",
+  "before",
+  "interleaved",
+];
+
+export const TRANSLATION_LAYOUT_LABEL: Record<TranslationLayout, string> = {
+  sameLine: "同一行",
+  nextLine: "原文在上",
+  before: "译文在上",
+  interleaved: "交错",
+};
+
+/** 每个选项配一句「输出长什么样」，比文字说明更省解释。 */
+export const TRANSLATION_LAYOUT_SAMPLE: Record<TranslationLayout, string> = {
+  sameLine: "[00:05.120]原词 翻译词",
+  nextLine: "[00:05.120]原词 / [00:05.120]翻译词",
+  before: "[00:05.120]翻译词 / [00:05.120]原词",
+  interleaved: "[00:05.120]原词1 / [00:07.050]翻译词1 / [00:07.050]原词2",
+};
 
 export interface GeneratedText {
   text: string;
@@ -78,6 +115,8 @@ export const DEFAULT_COPY_OPTIONS: CopyOptions = {
   includeMetadata: true,
   keepSpaces: true,
   filterCredits: false,
+  // 默认第 2 种（译文另起一行跟在原文后面），这也是老版本的行为，升级不改变结果。
+  translationLayout: "nextLine",
 };
 
 export const SOURCE_LABEL: Record<Source, string> = {

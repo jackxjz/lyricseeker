@@ -12,9 +12,35 @@
 //!
 //! 两种逐字格式都以**末音节的结束时间**作为行尾标签收尾（上例的
 //! `<00:00.320>` / `[00:00.320]`），这样下游播放器能知道最后一个字唱到何时。
-//! 译文行只保留首尾两个时间标签，不做逐字：`[起点]译文[终点]`。
+//! 译文行只保留首尾两个时间标签，不做逐字：`[起点]译文[终点]`；
+//! 具体摆在哪（同一行 / 原文下面 / 原文上面 / 交错）由 `TranslationLayout` 决定。
 
 use crate::model::{LyricLine, LyricsDoc};
+
+/// 译文在复制结果里的摆放方式。
+///
+/// 四种形态对应设置页「翻译」那一段的四个单选；括号里是实际样子：
+///
+/// - `SameLine`   `[t]原词 译文`
+/// - `NextLine`   `[t]原词` 换行 `[t]译文`（默认，播放器最通用）
+/// - `Before`     `[t]译文` 换行 `[t]原词`
+/// - `Interleaved` `[t]原词` 换行 `[下一行 t]译文`
+///
+/// `Interleaved` 用下一行的时间戳是刻意的：部分播放器按时间配对渲染，
+/// 这样译文会跟着下一行走而不是和原文一起出现。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum TranslationLayout {
+    /// 1️⃣ 与原文同一行。
+    SameLine,
+    /// 2️⃣ 译文另起一行，紧跟在原文之后（默认）。
+    #[default]
+    NextLine,
+    /// 3️⃣ 译文在原文之前。
+    Before,
+    /// 4️⃣ 译文跟在原文之后，但用下一行的时间戳。
+    Interleaved,
+}
 
 /// 复制选项，与前端 `CopyOptions` 一一对应。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -32,6 +58,9 @@ pub struct CopyOptions {
     /// 是否保留逐字中的空白音节。
     #[serde(default = "default_true")]
     pub keep_spaces: bool,
+    /// 译文的摆放方式。老版本设置文件没有这个字段，一律落到默认的 `NextLine`。
+    #[serde(default)]
+    pub translation_layout: TranslationLayout,
 }
 
 fn default_true() -> bool {
@@ -45,6 +74,7 @@ impl Default for CopyOptions {
             include_translation: false,
             filter_credits: false,
             keep_spaces: true,
+            translation_layout: TranslationLayout::default(),
         }
     }
 }
@@ -119,21 +149,111 @@ fn metadata_header(doc: &LyricsDoc) -> String {
     out
 }
 
-/// 译文行的发射：`[起点]译文[终点]`。
-///
-/// 只取整行的首尾时间，不复制逐字结构 —— 译文是整句对应，不是逐字对应。
-fn push_translation(out: &mut String, line: &LyricLine) {
-    let Some(translation) = line.translation.as_ref().filter(|t| !t.trim().is_empty()) else {
-        return;
-    };
+/// 这一行的译文文本（去空白；空串与纯空白视为没有译文）。
+fn translation_text(line: &LyricLine) -> Option<&str> {
+    line.translation
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+}
+
+/// 写一条带首尾时间的译文：`[起点]译文[终点]`。
+fn push_timed(out: &mut String, text: &str, start_ms: i32, end_ms: i32) {
     out.push('[');
-    out.push_str(&format_timestamp(line.start_ms));
+    out.push_str(&format_timestamp(start_ms));
     out.push(']');
-    out.push_str(translation.trim());
+    out.push_str(text);
     out.push('[');
-    out.push_str(&format_timestamp(line_end_ms(line)));
+    out.push_str(&format_timestamp(end_ms));
     out.push(']');
     out.push('\n');
+}
+
+/// 下一条「会被输出」的行的 (起点, 结束时间)。
+///
+/// `Interleaved` 要用它 —— 译文挂在下一行的时间上。为了不被空行和被过滤掉的
+/// 制作信息行带偏，这里按输出条件往后找，而不是直接取 `index + 1`。
+fn next_emitted(doc: &LyricsDoc, index: usize, options: &CopyOptions) -> Option<(i32, i32)> {
+    doc.lines
+        .iter()
+        .skip(index + 1)
+        .find(|line| !is_blank_line(line) && !should_skip(&line.text, options))
+        .map(|line| (line.start_ms, line_end_ms(line)))
+}
+
+/// 收尾一行：按 `layout` 处理译文，并补上这一行的换行。
+///
+/// `mark` 是写入原文之前记录的 `out.len()` —— `Before` 需要用 `split_off`
+/// 把刚写好的原文挪到译文后面，否则就得先把译文缓存起来再拼。
+fn finish_line(
+    out: &mut String,
+    mark: usize,
+    line: &LyricLine,
+    next: Option<(i32, i32)>,
+    options: &CopyOptions,
+    with_timestamps: bool,
+    paren: bool,
+) {
+    let Some(raw) = translation_text(line).filter(|_| options.include_translation) else {
+        out.push('\n');
+        return;
+    };
+    // 纯文本没有时间戳，原文与译文难免看起来一样；只有这种格式保留括号，
+    // 让人一眼能认出哪一句是译文。
+    let bracketed;
+    let text = if paren {
+        bracketed = format!("（{raw}）");
+        bracketed.as_str()
+    } else {
+        raw
+    };
+
+    match options.translation_layout {
+        TranslationLayout::SameLine => {
+            // 原文与译文之间固定一个空格；原文本身以空格结尾时不重复加。
+            if !out.ends_with(' ') {
+                out.push(' ');
+            }
+            out.push_str(text);
+            out.push('\n');
+        }
+        TranslationLayout::NextLine => {
+            out.push('\n');
+            if with_timestamps {
+                push_timed(out, text, line.start_ms, line_end_ms(line));
+            } else {
+                out.push_str(text);
+                out.push('\n');
+            }
+        }
+        TranslationLayout::Before => {
+            let original = out.split_off(mark);
+            if with_timestamps {
+                push_timed(out, text, line.start_ms, line_end_ms(line));
+            } else {
+                out.push_str(text);
+                out.push('\n');
+            }
+            out.push_str(&original);
+            out.push('\n');
+        }
+        TranslationLayout::Interleaved => {
+            out.push('\n');
+            // 最后一行没有「下一行」，退回用自己这行的时间，至少不丢译文。
+            let (start_ms, end_ms) = next.unwrap_or((line.start_ms, line_end_ms(line)));
+            if with_timestamps {
+                push_timed(out, text, start_ms, end_ms);
+            } else {
+                out.push_str(text);
+                out.push('\n');
+            }
+        }
+    }
+}
+
+/// 完全空的行（既没文本也没逐字）。
+fn is_blank_line(line: &LyricLine) -> bool {
+    line.text.trim().is_empty() && line.syllables.is_none()
 }
 
 // ---------------------------------------------------------------------------
@@ -149,14 +269,15 @@ pub fn enhanced_lrc(doc: &LyricsDoc, options: &CopyOptions) -> String {
         out.push_str(&metadata_header(doc));
     }
 
-    for line in &doc.lines {
-        if line.text.trim().is_empty() && line.syllables.is_none() {
+    for (index, line) in doc.lines.iter().enumerate() {
+        if is_blank_line(line) {
             continue;
         }
         if should_skip(&line.text, options) {
             continue;
         }
 
+        let mark = out.len();
         out.push('[');
         out.push_str(&format_timestamp(line.start_ms));
         out.push(']');
@@ -180,11 +301,15 @@ pub fn enhanced_lrc(doc: &LyricsDoc, options: &CopyOptions) -> String {
             None => out.push_str(&line.text),
         }
 
-        out.push('\n');
-
-        if options.include_translation {
-            push_translation(&mut out, line);
-        }
+        finish_line(
+            &mut out,
+            mark,
+            line,
+            next_emitted(doc, index, options),
+            options,
+            true,
+            false,
+        );
     }
 
     out
@@ -204,13 +329,16 @@ pub fn plain_syllable(doc: &LyricsDoc, options: &CopyOptions) -> String {
         out.push_str(&metadata_header(doc));
     }
 
-    for line in &doc.lines {
-        if line.text.trim().is_empty() && line.syllables.is_none() {
+    for (index, line) in doc.lines.iter().enumerate() {
+        if is_blank_line(line) {
             continue;
         }
         if should_skip(&line.text, options) {
             continue;
         }
+
+        let mark = out.len();
+        let next = next_emitted(doc, index, options);
 
         let Some(syllables) = visible_syllables(line, options) else {
             // 没有逐字信息时仍输出行文本，避免用户拿到空结果。
@@ -218,7 +346,7 @@ pub fn plain_syllable(doc: &LyricsDoc, options: &CopyOptions) -> String {
             out.push_str(&format_timestamp(line.start_ms));
             out.push(']');
             out.push_str(&line.text);
-            out.push('\n');
+            finish_line(&mut out, mark, line, next, options, true, false);
             continue;
         };
 
@@ -230,22 +358,18 @@ pub fn plain_syllable(doc: &LyricsDoc, options: &CopyOptions) -> String {
 
         for (index, syllable) in syllables.iter().enumerate() {
             out.push_str(&syllable.text);
-            let next = syllables.get(index + 1).map_or(end, |next| next.start_ms);
+            let next_start = syllables.get(index + 1).map_or(end, |next| next.start_ms);
             if index + 1 == syllables.len() {
                 // 末字之后不再有其他字，先裁掉尾随空白再收口（同增强格式）。
                 let trimmed = out.trim_end().len();
                 out.truncate(trimmed);
             }
             out.push('[');
-            out.push_str(&format_timestamp(next));
+            out.push_str(&format_timestamp(next_start));
             out.push(']');
         }
 
-        out.push('\n');
-
-        if options.include_translation {
-            push_translation(&mut out, line);
-        }
+        finish_line(&mut out, mark, line, next, options, true, false);
     }
 
     out
@@ -262,7 +386,7 @@ pub fn plain_lrc(doc: &LyricsDoc, options: &CopyOptions) -> String {
         out.push_str(&metadata_header(doc));
     }
 
-    for line in &doc.lines {
+    for (index, line) in doc.lines.iter().enumerate() {
         if line.text.trim().is_empty() {
             continue;
         }
@@ -270,15 +394,21 @@ pub fn plain_lrc(doc: &LyricsDoc, options: &CopyOptions) -> String {
             continue;
         }
 
+        let mark = out.len();
         out.push('[');
         out.push_str(&format_timestamp(line.start_ms));
         out.push(']');
         out.push_str(line.text.trim_end());
-        out.push('\n');
 
-        if options.include_translation {
-            push_translation(&mut out, line);
-        }
+        finish_line(
+            &mut out,
+            mark,
+            line,
+            next_emitted(doc, index, options),
+            options,
+            true,
+            false,
+        );
     }
 
     out
@@ -292,23 +422,25 @@ pub fn plain_lrc(doc: &LyricsDoc, options: &CopyOptions) -> String {
 pub fn plain_text(doc: &LyricsDoc, options: &CopyOptions) -> String {
     let mut out = String::new();
 
-    for line in &doc.lines {
+    for (index, line) in doc.lines.iter().enumerate() {
         if line.text.trim().is_empty() {
             continue;
         }
         if should_skip(&line.text, options) {
             continue;
         }
+        let mark = out.len();
         out.push_str(line.text.trim_end());
-        out.push('\n');
 
-        if options.include_translation {
-            if let Some(translation) = line.translation.as_ref().filter(|t| !t.trim().is_empty()) {
-                out.push_str("（");
-                out.push_str(translation.trim());
-                out.push_str("）\n");
-            }
-        }
+        finish_line(
+            &mut out,
+            mark,
+            line,
+            next_emitted(doc, index, options),
+            options,
+            false,
+            true,
+        );
     }
 
     out
@@ -507,5 +639,81 @@ mod tests {
         assert!(generate(&doc(), "bogus", &CopyOptions::default()).is_none());
         assert!(generate(&doc(), "enhanced", &CopyOptions::default()).is_some());
         assert!(generate(&doc(), "plain", &CopyOptions::default()).is_some());
+    }
+
+    /// 每行都有译文，用于验证四种摆放方式。
+    fn doc_translated() -> LyricsDoc {
+        let mut doc = doc();
+        doc.lines[0].translation = Some("Sunny day".into());
+        doc
+    }
+
+    fn with_layout(layout: TranslationLayout) -> CopyOptions {
+        CopyOptions {
+            include_translation: true,
+            translation_layout: layout,
+            ..CopyOptions::default()
+        }
+    }
+
+    #[test]
+    fn layout_same_line_puts_translation_after_original() {
+        let out = plain_lrc(&doc_translated(), &with_layout(TranslationLayout::SameLine));
+        assert_eq!(
+            out,
+            "[00:00.000]晴天 Sunny day\n[00:02.250]词：周杰伦 Lyrics: Jay Chou\n"
+        );
+    }
+
+    #[test]
+    fn layout_next_line_is_the_default() {
+        // 默认值必须是 2️⃣：设置文件里没有该字段时也走这一支。
+        assert_eq!(CopyOptions::default().translation_layout, TranslationLayout::NextLine);
+        let out = plain_lrc(&doc_translated(), &with_layout(TranslationLayout::NextLine));
+        assert_eq!(
+            out,
+            "[00:00.000]晴天\n[00:00.000]Sunny day[00:00.320]\n\
+             [00:02.250]词：周杰伦\n[00:02.250]Lyrics: Jay Chou[00:02.700]\n"
+        );
+    }
+
+    #[test]
+    fn layout_before_puts_translation_first() {
+        let out = plain_lrc(&doc_translated(), &with_layout(TranslationLayout::Before));
+        assert_eq!(
+            out,
+            "[00:00.000]Sunny day[00:00.320]\n[00:00.000]晴天\n\
+             [00:02.250]Lyrics: Jay Chou[00:02.700]\n[00:02.250]词：周杰伦\n"
+        );
+    }
+
+    #[test]
+    fn layout_interleaved_borrows_next_line_time() {
+        let out = plain_lrc(&doc_translated(), &with_layout(TranslationLayout::Interleaved));
+        // 首行译文用下一行的 2250 而不是自己的 0；末行没有下一行，退回自己这行的时间。
+        assert_eq!(
+            out,
+            "[00:00.000]晴天\n[00:02.250]Sunny day[00:02.700]\n\
+             [00:02.250]词：周杰伦\n[00:02.250]Lyrics: Jay Chou[00:02.700]\n"
+        );
+    }
+
+    #[test]
+    fn layout_is_ignored_when_translation_is_off() {
+        let options = CopyOptions {
+            include_translation: false,
+            translation_layout: TranslationLayout::Before,
+            ..CopyOptions::default()
+        };
+        assert_eq!(
+            plain_lrc(&doc_translated(), &options),
+            "[00:00.000]晴天\n[00:02.250]词：周杰伦\n"
+        );
+    }
+
+    #[test]
+    fn plain_text_still_brackets_translation() {
+        let out = plain_text(&doc_translated(), &with_layout(TranslationLayout::NextLine));
+        assert_eq!(out, "晴天\n（Sunny day）\n词：周杰伦\n（Lyrics: Jay Chou）\n");
     }
 }
