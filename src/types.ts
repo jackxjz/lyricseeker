@@ -65,7 +65,7 @@ export interface CopyOptions {
 /** 可以「点一下取反」的开关项。`translationLayout` 是单选，不在此列。 */
 export type CopyToggleKey = Exclude<keyof CopyOptions, "translationLayout">;
 
-/** 翻译板块的单选项，顺序即界面顺序（1️⃣2️⃣3️⃣4️⃣）。 */
+/** 翻译板块的单选项，顺序即界面顺序。 */
 export const TRANSLATION_LAYOUT_ORDER: TranslationLayout[] = [
   "sameLine",
   "nextLine",
@@ -80,12 +80,12 @@ export const TRANSLATION_LAYOUT_LABEL: Record<TranslationLayout, string> = {
   interleaved: "交错",
 };
 
-/** 每个选项配一句「输出长什么样」，比文字说明更省解释。 */
+/** 每个选项配一份「输出长什么样」，比文字说明更省解释。用换行代替分隔符。 */
 export const TRANSLATION_LAYOUT_SAMPLE: Record<TranslationLayout, string> = {
-  sameLine: "[00:05.120]原词 翻译词",
-  nextLine: "[00:05.120]原词 / [00:05.120]翻译词",
-  before: "[00:05.120]翻译词 / [00:05.120]原词",
-  interleaved: "[00:05.120]原词1 / [00:07.050]翻译词1 / [00:07.050]原词2",
+  sameLine: "[00:01.168]原词 翻译词",
+  nextLine: "[00:01.168]原词\n[00:01.168]翻译词",
+  before: "[00:01.168]翻译词\n[00:01.168]原词",
+  interleaved: "[00:01.168]原词1\n[00:02.268]翻译词1\n[00:02.268]原词2",
 };
 
 export interface GeneratedText {

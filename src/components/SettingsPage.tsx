@@ -128,23 +128,23 @@ export function SettingsPage({
               决定译文摆在哪一行。这里选成什么样，复制出去就是什么样。
             </p>
             <ul className="settings-list settings-layouts">
-              {TRANSLATION_LAYOUT_ORDER.map((layout, index) => {
+              {TRANSLATION_LAYOUT_ORDER.map((layout) => {
                 const disabled = !copy.includeTranslation;
                 return (
                   <li key={layout}>
-                    <label className={`settings-row layout-row${disabled ? " is-disabled" : ""}`}>
-                      <input
-                        type="radio"
-                        name="translation-layout"
-                        value={layout}
-                        checked={copy.translationLayout === layout}
-                        disabled={disabled}
-                        onChange={() => onSelectTranslation(layout)}
-                      />
-                      <span className="settings-label">
-                        {index + 1}️⃣ {TRANSLATION_LAYOUT_LABEL[layout]}
-                        <em>{TRANSLATION_LAYOUT_SAMPLE[layout]}</em>
+                    <label className={`layout-row${disabled ? " is-disabled" : ""}`}>
+                      <span className="layout-head">
+                        <input
+                          type="radio"
+                          name="translation-layout"
+                          value={layout}
+                          checked={copy.translationLayout === layout}
+                          disabled={disabled}
+                          onChange={() => onSelectTranslation(layout)}
+                        />
+                        <span className="layout-name">{TRANSLATION_LAYOUT_LABEL[layout]}</span>
                       </span>
+                      <em>{TRANSLATION_LAYOUT_SAMPLE[layout]}</em>
                     </label>
                   </li>
                 );

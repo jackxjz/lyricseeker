@@ -633,12 +633,15 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .settings-layouts .layout-row {
+  display: flex;
   flex-direction: column;
   gap: 5px;
   height: 100%;
   padding: 8px;
   border: 1px solid var(--line);
+  border-radius: 7px;
   background: var(--bg);
+  cursor: pointer;
 }
 
 .settings-layouts .layout-row:hover:not(.is-disabled) {
@@ -646,8 +649,23 @@ input[type="search"]::-webkit-search-cancel-button {
   background: var(--bg-hover);
 }
 
-.settings-layouts input {
-  margin-top: 0;
+/* 单选圆点与选项名同一行，圆点在左、名字在右。 */
+.layout-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.layout-head input {
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.layout-name {
+  font-size: 12.5px;
+  color: var(--text);
 }
 
 /* 选中的那格连同边框一起高亮 —— 只有一个小圆点，四格里看不出选了哪个。 */
@@ -656,22 +674,23 @@ input[type="search"]::-webkit-search-cancel-button {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.settings-layouts .settings-label {
-  font-size: 12px;
-  gap: 3px;
-}
-
-.settings-layouts .settings-label em {
+/* 样例用换行分行，所以要 pre-line；keep-all 让中文词不被拆到两行
+   （否则「翻译词」会被断成「翻 / 译词」），只在空格处折行。 */
+.settings-layouts .layout-row em {
+  font-style: normal;
   font-family: var(--mono);
   font-size: 10px;
-  word-break: break-all;
+  line-height: 1.5;
+  color: var(--text-faint);
+  white-space: pre-line;
+  word-break: keep-all;
 }
 
 /* 「带翻译」关掉时整段置灰；cursor 也要跟着变，否则鼠标还是手型。 */
 .settings-section.is-disabled h3,
 .settings-section.is-disabled .settings-desc,
 .settings-layouts .layout-row.is-disabled,
-.settings-layouts .layout-row.is-disabled .settings-label em {
+.settings-layouts .layout-row.is-disabled em {
   opacity: 0.45;
 }
 

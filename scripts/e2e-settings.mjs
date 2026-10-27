@@ -122,14 +122,30 @@ async function run() {
       const radios = [...s.querySelectorAll('input[type=radio]')];
       const labels = [...s.querySelectorAll('.layout-row')];
       const top = labels.map(l => Math.round(l.getBoundingClientRect().top));
+      // 单选圆点必须在选项名左侧、且垂直居中对齐
+      const placed = labels.map(l => {
+        const r = l.querySelector('input[type=radio]').getBoundingClientRect();
+        const n = l.querySelector('.layout-name').getBoundingClientRect();
+        return {
+          right: Math.round(n.left) >= Math.round(r.right) - 2,
+          center: Math.abs((r.top + r.height / 2) - (n.top + n.height / 2)) <= 3,
+        };
+      });
+      const samples = labels.map(l => l.querySelector('em')?.textContent ?? '');
       return {
         count: radios.length,
         values: radios.map(r => r.value),
+        names: labels.map(l => l.querySelector('.layout-name')?.textContent ?? ''),
         checked: radios.find(r => r.checked)?.value ?? null,
         disabled: radios.filter(r => r.disabled).length,
         sameRow: new Set(top).size === 1,
         gridColumns: getComputedStyle(s.querySelector('.settings-layouts')).gridTemplateColumns.split(' ').length,
         hasWarn: !!s.querySelector('.settings-warn'),
+        nameRightOfRadio: placed.every(p => p.right && p.center),
+        noEmoji: !/[\\u{1F000}-\\u{1FAFF}\\u{FE0F}\\u{20E3}]/u.test(s.textContent),
+        samplesMultiline: samples.map(t => t.split('\\n').length),
+        samplesSolidus: samples.some(t => t.includes('/')),
+        samplesTimes: [...new Set(samples.join('\\n').match(/\\[\\d\\d:\\d\\d\\.\\d\\d\\d\\]/g) ?? [])],
       };
     })()
   `);
@@ -143,6 +159,18 @@ async function run() {
   check("默认选中第 2 种（原文在上）", trans.checked === "nextLine", trans.checked);
   check("四个单选水平铺开（同一行 + 四列栅格）", trans.sameRow === true && trans.gridColumns === 4);
   check("带翻译开着时单选可用", trans.disabled === 0, `disabled=${trans.disabled}`);
+  check("选项名在单选圆点右侧且居中对齐", trans.nameRightOfRadio === true);
+  check("选项名里没有 emoji 编号", trans.noEmoji === true, JSON.stringify(trans.names));
+  check(
+    "样例用换行而不是斜杠分隔",
+    trans.samplesSolidus === false && trans.samplesMultiline?.filter(n => n > 1).length === 3,
+    JSON.stringify(trans.samplesMultiline),
+  );
+  check(
+    "样例时间戳为 01.168 / 02.268",
+    trans.samplesTimes?.every(t => t === "[00:01.168]" || t === "[00:02.268]") === true,
+    JSON.stringify(trans.samplesTimes),
+  );
 
   const greyed = await evaluate(`
     (async () => {
