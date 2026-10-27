@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   clearCache,
   fetchLyrics,
@@ -17,6 +18,7 @@ import type {
   SongCandidate,
   Source,
   SourceFilter,
+  ThemeMode,
   TranslationLayout,
 } from "./types";
 import { describeError, FORMAT_LABEL, FORMAT_ORDER } from "./types";
@@ -80,6 +82,25 @@ export default function App() {
   useEffect(() => {
     if (settingsLoaded && dirty.current) void saveSettings(settings);
   }, [settings, settingsLoaded]);
+
+  // 主题：`data-theme` 让 CSS 里的 light-dark() 知道该取哪一侧；同时告诉
+  // 窗口自己（WebView2 + 原生标题栏）跟随哪种配色，否则标题栏会一直黑白
+  // 对不上页面。传 null 表示交还给系统。
+  useEffect(() => {
+    const mode = settings.theme;
+    const root = document.documentElement;
+    if (mode === "system") {
+      delete root.dataset.theme;
+    } else {
+      root.dataset.theme = mode;
+    }
+    getCurrentWindow()
+      .setTheme(mode === "system" ? null : mode)
+      .catch((error: unknown) => {
+        // 换不了配色只是难看，不该打断使用。
+        console.warn("切换窗口主题失败", error);
+      });
+  }, [settings.theme]);
 
   // 源被关掉后，主页的 tab 要跟着收口，否则会停在一个不存在的选项上。
   useEffect(() => {
@@ -215,6 +236,11 @@ export default function App() {
     }));
   }, []);
 
+  const selectTheme = useCallback((mode: ThemeMode) => {
+    dirty.current = true;
+    setSettings((current) => ({ ...current, theme: mode }));
+  }, []);
+
   const doClearCache = useCallback(async () => {
     setCacheBusy(true);
     try {
@@ -314,6 +340,7 @@ export default function App() {
         <SettingsPage
           enabledSources={settings.enabledSources}
           copy={settings.copy}
+          theme={settings.theme}
           cacheBytes={cache?.bytes ?? 0}
           cacheFiles={cache?.files ?? 0}
           cacheLocation={cache?.location ?? ""}
@@ -321,6 +348,7 @@ export default function App() {
           onToggleSource={toggleSource}
           onToggleCopy={toggleCopy}
           onSelectTranslation={selectTranslation}
+          onSelectTheme={selectTheme}
           onClearCache={() => void doClearCache()}
           onClose={() => setSettingsOpen(false)}
         />

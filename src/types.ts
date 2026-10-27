@@ -65,6 +65,27 @@ export interface CopyOptions {
 /** 可以「点一下取反」的开关项。`translationLayout` 是单选，不在此列。 */
 export type CopyToggleKey = Exclude<keyof CopyOptions, "translationLayout">;
 
+/**
+ * 界面主题。
+ *
+ * - `system` 跟随 Windows 的浅色/深色设置（默认）
+ * - `light`  强制浅色
+ * - `dark`   强制深色
+ *
+ * 决定方式：给 `<html>` 挂 `data-theme`，CSS 里的 `light-dark(浅, 深)`
+ * 只看 `color-scheme`，所以真正生效的是 `color-scheme` 的取值。
+ */
+export type ThemeMode = "system" | "light" | "dark";
+
+/** 主题三个切换卡，顺序即界面顺序。 */
+export const THEME_MODE_ORDER: ThemeMode[] = ["system", "light", "dark"];
+
+export const THEME_MODE_LABEL: Record<ThemeMode, string> = {
+  system: "跟随系统",
+  light: "浅色",
+  dark: "深色",
+};
+
 /** 翻译板块的单选项，顺序即界面顺序。 */
 export const TRANSLATION_LAYOUT_ORDER: TranslationLayout[] = [
   "sameLine",

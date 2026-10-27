@@ -1,6 +1,8 @@
-import type { CopyOptions, CopyToggleKey, Source, TranslationLayout } from "../types";
+import type { CopyOptions, CopyToggleKey, Source, ThemeMode, TranslationLayout } from "../types";
 import {
   SOURCE_LABEL,
+  THEME_MODE_LABEL,
+  THEME_MODE_ORDER,
   TRANSLATION_LAYOUT_LABEL,
   TRANSLATION_LAYOUT_ORDER,
   TRANSLATION_LAYOUT_SAMPLE,
@@ -10,6 +12,7 @@ import { formatBytes } from "../settings";
 interface SettingsPageProps {
   enabledSources: Source[];
   copy: CopyOptions;
+  theme: ThemeMode;
   cacheBytes: number;
   cacheFiles: number;
   cacheLocation: string;
@@ -17,6 +20,7 @@ interface SettingsPageProps {
   onToggleSource: (source: Source) => void;
   onToggleCopy: (key: CopyToggleKey) => void;
   onSelectTranslation: (layout: TranslationLayout) => void;
+  onSelectTheme: (mode: ThemeMode) => void;
   onClearCache: () => void;
   onClose: () => void;
 }
@@ -45,6 +49,7 @@ const COPY_ITEMS: Array<{
 export function SettingsPage({
   enabledSources,
   copy,
+  theme,
   cacheBytes,
   cacheFiles,
   cacheLocation,
@@ -52,6 +57,7 @@ export function SettingsPage({
   onToggleSource,
   onToggleCopy,
   onSelectTranslation,
+  onSelectTheme,
   onClearCache,
   onClose,
 }: SettingsPageProps) {
@@ -66,6 +72,30 @@ export function SettingsPage({
         </header>
 
         <div className="settings-body">
+          {/* 主题放最前面：它是整页唯一影响观感的项，翻在下面容易被忽略。 */}
+          <section className="settings-section">
+            <h3>主题</h3>
+            <p className="settings-desc">「跟随系统」会随着 Windows 的浅色 / 深色自动切换。</p>
+            <ul className="settings-list settings-themes">
+              {THEME_MODE_ORDER.map((mode) => (
+                <li key={mode}>
+                  <label className={`layout-row theme-row${theme === mode ? " is-checked" : ""}`}>
+                    <span className="layout-head">
+                      <input
+                        type="radio"
+                        name="theme-mode"
+                        value={mode}
+                        checked={theme === mode}
+                        onChange={() => onSelectTheme(mode)}
+                      />
+                      <span className="layout-name">{THEME_MODE_LABEL[mode]}</span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section className="settings-section">
             <h3>词源</h3>
             <p className="settings-desc">关掉的歌词源不会出现在主页，也不会被检索。</p>

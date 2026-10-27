@@ -1,21 +1,70 @@
-/* LyricSeeker —— 深色单窗口布局。 */
+/* LyricSeeker —— 单窗口布局，浅色 / 深色两套。
+ *
+ * 颜色的写法：全部用 `light-dark(浅色值, 深色值)`，切换主题只改
+ * `color-scheme` 一处即可，不需要维护两份样式表。
+ *
+ * 注意 `light-dark()` 只认 `color-scheme`，与 `prefers-color-scheme` 无关：
+ * - 不写 data-theme  → 继承 WebView2/Windows 的默认值，即「跟随系统」
+ * - data-theme=light → color-scheme: light
+ * - data-theme=dark  → color-scheme: dark
+ */
 
 :root {
-  --bg: #14161b;
-  --bg-raised: #1b1e25;
-  --bg-hover: #23272f;
-  --bg-active: #2b3038;
-  --line: #2c313a;
-  --text: #e6e9ef;
-  --text-dim: #9aa3b2;
-  --text-faint: #6b7484;
-  --accent: #4c8dff;
-  --accent-soft: rgba(76, 141, 255, 0.14);
-  --ok: #3ecf8e;
-  --error: #ff6b6b;
+  color-scheme: light dark;
+
+  --bg: light-dark(#f6f7fa, #14161b);
+  --bg-raised: light-dark(#ffffff, #1b1e25);
+  --bg-hover: light-dark(#eef1f6, #23272f);
+  --bg-active: light-dark(#e3e8f0, #2b3038);
+  --line: light-dark(#dfe3ea, #2c313a);
+  --line-strong: light-dark(#c6cedb, #3a4049);
+  --text: light-dark(#1c1f26, #e6e9ef);
+  --text-dim: light-dark(#58606f, #9aa3b2);
+  --text-faint: light-dark(#858d9c, #6b7484);
+  --accent: light-dark(#2f6fe4, #4c8dff);
+  --accent-hover: light-dark(#2a63cc, #5f9bff);
+  --accent-soft: light-dark(rgba(47, 111, 228, 0.12), rgba(76, 141, 255, 0.14));
+  --accent-border: light-dark(rgba(47, 111, 228, 0.42), rgba(76, 141, 255, 0.42));
+  /* 强调色上的文字：深色底用近白，浅色底直接用白（#2f6fe4 对白字 4.6:1）。 */
+  --on-accent: #ffffff;
+  /* 强调底上的正文色：浅色下要压暗，否则白底蓝字太浅。 */
+  --accent-text: light-dark(#1f4fb8, #a8c6ff);
+  --accent-text-strong: light-dark(#163c8c, #c7dbff);
+  --accent-text-soft: light-dark(#1b3f8f, #cfe0ff);
+  --accent-text-line: light-dark(#1a3a78, #dbe9ff);
+  --syl-passed: light-dark(#2b62c9, #7fb2ff);
+  --ok: light-dark(#17a673, #3ecf8e);
+  --ok-bg: light-dark(rgba(23, 166, 115, 0.1), rgba(62, 207, 142, 0.12));
+  --ok-border: light-dark(rgba(23, 166, 115, 0.38), rgba(62, 207, 142, 0.4));
+  --error: light-dark(#d64545, #ff6b6b);
+  --error-bg: light-dark(rgba(214, 69, 69, 0.09), rgba(255, 107, 107, 0.12));
+  --error-bg-soft: light-dark(rgba(214, 69, 69, 0.07), rgba(255, 107, 107, 0.1));
+  --error-border: light-dark(rgba(214, 69, 69, 0.38), rgba(255, 107, 107, 0.35));
+  --error-text: light-dark(#a32121, #ffb4b4);
+  --error-text-soft: light-dark(#8f1d1d, #ffc4c4);
+  --warn-bg: light-dark(rgba(255, 176, 32, 0.16), rgba(255, 180, 66, 0.12));
+  --warn-border: light-dark(rgba(255, 176, 32, 0.42), rgba(255, 180, 66, 0.28));
+  --warn-text: light-dark(#8a5200, #ffce7a);
+  --overlay: light-dark(rgba(15, 18, 24, 0.34), rgba(8, 9, 12, 0.62));
+  --toast-bg: light-dark(#ffffff, #2a3038);
+  --toast-error-bg: light-dark(#fdeded, #3a2429);
+  --shadow-md: light-dark(rgba(15, 23, 42, 0.14), rgba(0, 0, 0, 0.42));
+  --shadow-lg: light-dark(rgba(15, 23, 42, 0.18), rgba(0, 0, 0, 0.55));
+  --scrollbar: light-dark(#c3cad6, #333941);
+  --scrollbar-hover: light-dark(#a9b3c2, #414852);
   --radius: 8px;
   --mono: "Cascadia Mono", "Consolas", "JetBrains Mono", ui-monospace, monospace;
 }
+
+/* 强制浅色 / 深色。`system` 不挂 data-theme，交给上面的 light dark。 */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 
 * {
   box-sizing: border-box;
@@ -53,7 +102,7 @@ button {
 
 button:hover:not(:disabled) {
   background: var(--bg-hover);
-  border-color: #3a4049;
+  border-color: var(--line-strong);
 }
 
 button:disabled {
@@ -64,13 +113,13 @@ button:disabled {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 button.primary:hover:not(:disabled) {
-  background: #5f9bff;
-  border-color: #5f9bff;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 button.ghost {
@@ -80,7 +129,7 @@ button.ghost {
 button.ghost.active {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: #a8c6ff;
+  color: var(--accent-text);
 }
 
 button.ghost.small {
@@ -108,8 +157,21 @@ input[type="text"]:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* 搜索框自带的清除按钮是浏览器内部绘制的，它的颜色跟 color-scheme 走；
+ * 深色底上原本用 invert(0.6) 提亮，浅色下反而要压淡，所以这里按主题分开写。 */
 input[type="search"]::-webkit-search-cancel-button {
+  filter: invert(0.45);
+}
+
+:root[data-theme="dark"] input[type="search"]::-webkit-search-cancel-button {
   filter: invert(0.6);
+}
+
+/* 「跟随系统」时没有 data-theme，用媒体查询兜住深色。 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input[type="search"]::-webkit-search-cancel-button {
+    filter: invert(0.6);
+  }
 }
 
 /* ---------- 整体骨架 ---------- */
@@ -169,7 +231,7 @@ input[type="search"]::-webkit-search-cancel-button {
 
 .tab.active {
   background: var(--accent-soft);
-  color: #a8c6ff;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -203,20 +265,20 @@ input[type="search"]::-webkit-search-cancel-button {
 .icon-button.active {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: #a8c6ff;
+  color: var(--accent-text);
 }
 
 .icon-button.active:hover:not(:disabled) {
-  color: #c7dbff;
+  color: var(--accent-text-strong);
 }
 
 /* ---------- 降级横幅 ---------- */
 
 .banner {
   padding: 7px 14px;
-  background: rgba(255, 180, 66, 0.12);
-  border-bottom: 1px solid rgba(255, 180, 66, 0.28);
-  color: #ffce7a;
+  background: var(--warn-bg);
+  border-bottom: 1px solid var(--warn-border);
+  color: var(--warn-text);
   font-size: 12.5px;
 }
 
@@ -296,7 +358,7 @@ input[type="search"]::-webkit-search-cancel-button {
 
 .song-item.active {
   background: var(--accent-soft);
-  border-color: rgba(76, 141, 255, 0.42);
+  border-color: var(--accent-border);
 }
 
 .song-title {
@@ -308,7 +370,7 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .song-item.active .song-title {
-  color: #cfe0ff;
+  color: var(--accent-text-soft);
   font-weight: 600;
 }
 
@@ -394,8 +456,8 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .badge.ok {
-  border-color: rgba(62, 207, 142, 0.4);
-  background: rgba(62, 207, 142, 0.12);
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
   color: var(--ok);
 }
 
@@ -451,7 +513,7 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .lyric-line.active .line-body {
-  color: #dbe9ff;
+  color: var(--accent-text-line);
 }
 
 .syl {
@@ -459,7 +521,7 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .syl.passed {
-  color: #7fb2ff;
+  color: var(--syl-passed);
 }
 
 .line-translation {
@@ -524,7 +586,7 @@ input[type="search"]::-webkit-search-cancel-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 9, 12, 0.62);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
   z-index: 40;
 }
@@ -537,7 +599,7 @@ input[type="search"]::-webkit-search-cancel-button {
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 24px 64px var(--shadow-lg);
   overflow: hidden;
 }
 
@@ -624,6 +686,43 @@ input[type="search"]::-webkit-search-cancel-button {
   line-height: 1.45;
 }
 
+/* ---------- 主题板块：水平铺三个卡片 ---------- */
+
+.settings-themes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-themes .theme-row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.settings-themes .theme-row:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.settings-themes .theme-row.is-checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.settings-themes .theme-row.is-checked .layout-name {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
 /* ---------- 翻译板块：水平铺四个单选 ---------- */
 
 .settings-layouts {
@@ -708,7 +807,7 @@ input[type="search"]::-webkit-search-cancel-button {
   margin: 8px 0 0;
   padding: 7px 10px;
   border-radius: 7px;
-  background: rgba(255, 107, 107, 0.12);
+  background: var(--error-bg);
   color: var(--error);
   font-size: 11.5px;
 }
@@ -747,11 +846,11 @@ input[type="search"]::-webkit-search-cancel-button {
 
 button.ghost.danger {
   color: var(--error);
-  border-color: rgba(255, 107, 107, 0.35);
+  border-color: var(--error-border);
 }
 
 button.ghost.danger:hover:not(:disabled) {
-  background: rgba(255, 107, 107, 0.12);
+  background: var(--error-bg);
 }
 
 /* ---------- 状态栏 ---------- */
@@ -769,8 +868,8 @@ button.ghost.danger:hover:not(:disabled) {
 }
 
 .statusbar.error {
-  color: #ffb4b4;
-  background: rgba(255, 107, 107, 0.1);
+  color: var(--error-text);
+  background: var(--error-bg-soft);
 }
 
 .status-dot {
@@ -820,11 +919,11 @@ button.ghost.danger:hover:not(:disabled) {
   max-width: 76vw;
   padding: 8px 16px;
   border-radius: 999px;
-  background: #2a3038;
+  background: var(--toast-bg);
   border: 1px solid var(--line);
   color: var(--text);
   font-size: 12.5px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  box-shadow: 0 10px 28px var(--shadow-md);
   opacity: 0;
   transition: opacity 160ms ease, transform 160ms ease;
   pointer-events: none;
@@ -840,9 +939,9 @@ button.ghost.danger:hover:not(:disabled) {
 }
 
 .toast.error {
-  background: #3a2429;
-  border-color: rgba(255, 107, 107, 0.5);
-  color: #ffc4c4;
+  background: var(--toast-error-bg);
+  border-color: var(--error-border);
+  color: var(--error-text-soft);
 }
 
 /* ---------- 滚动条 ---------- */
@@ -857,11 +956,11 @@ button.ghost.danger:hover:not(:disabled) {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333941;
+  background: var(--scrollbar);
   border-radius: 6px;
   border: 2px solid var(--bg);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #414852;
+  background: var(--scrollbar-hover);
 }

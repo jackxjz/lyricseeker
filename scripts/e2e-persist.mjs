@@ -49,7 +49,10 @@ const snapshot = `(function () {
   var lyric = find('歌词');
   var rows = Array.prototype.slice.call(lyric.querySelectorAll('.settings-row'));
   var trans = find('翻译');
+  var themeSection = find('主题');
   return JSON.stringify({
+    theme: themeSection ? ((themeSection.querySelector('input[type=radio]:checked') || {}).value || null) : null,
+    dataTheme: document.documentElement.dataset.theme || null,
     copy: rows.map(function (r) {
       return { label: r.querySelector('.settings-label').firstChild.textContent.trim(), on: r.querySelector('input').checked };
     }),
@@ -81,6 +84,9 @@ if (STEP === "set") {
       // 翻译摆放方式也一起改掉：非默认值（第 3 种「译文在上」）才证明写盘生效。
       var before = find('翻译').querySelector('input[value=before]');
       if (before && !before.disabled && !before.checked) before.click();
+      // 主题也切到非默认值（深色），重启后能读回才算真写盘。
+      var dark = find('主题').querySelector('input[value=dark]');
+      if (dark && !dark.checked) dark.click();
     })()`,
   );
   await sleep(800);

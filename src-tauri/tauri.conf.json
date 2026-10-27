@@ -22,8 +22,7 @@
         "fullscreen": false,
         "center": true,
         "visible": true,
-        "decorations": true,
-        "theme": "Dark"
+        "decorations": true
       }
     ],
     "security": {

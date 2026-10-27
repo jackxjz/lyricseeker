@@ -107,12 +107,84 @@ async function run() {
   check("默认勾选 翻译/元信息/空格", copyItems[0].checked && copyItems[1].checked && copyItems[2].checked);
   check("默认不勾选 过滤制作信息", copyItems[3].checked === false);
 
-  // 3. 四个段落顺序：词源 → 歌词 → 翻译 → 缓存
+  // 3. 五个段落顺序：主题 → 词源 → 歌词 → 翻译 → 缓存
   const headings = await evaluate(
     `[...document.querySelectorAll('.settings-section h3')].map(h => h.textContent)`,
   );
   console.log("段落顺序:", JSON.stringify(headings));
-  check("段落顺序 词源→歌词→翻译→缓存", headings.join(",") === "词源,歌词,翻译,缓存");
+  check("段落顺序 主题→词源→歌词→翻译→缓存", headings.join(",") === "主题,词源,歌词,翻译,缓存");
+
+  // 3a. 主题板块：三个卡片、默认跟随系统、点击后 color-scheme 与底色真的变
+  const theme = await evaluate(`
+    (() => {
+      const s = [...document.querySelectorAll('.settings-section')].find(s => s.querySelector('h3')?.textContent === '主题');
+      if (!s) return { missing: true };
+      const radios = [...s.querySelectorAll('input[type=radio]')];
+      const cards = [...s.querySelectorAll('.theme-row')];
+      return {
+        count: radios.length,
+        values: radios.map(r => r.value),
+        names: cards.map(c => c.querySelector('.layout-name')?.textContent ?? ''),
+        checked: radios.find(r => r.checked)?.value ?? null,
+        sameRow: new Set(cards.map(c => Math.round(c.getBoundingClientRect().top))).size === 1,
+        gridColumns: getComputedStyle(s.querySelector('.settings-themes')).gridTemplateColumns.split(' ').length,
+        dataTheme: document.documentElement.dataset.theme ?? null,
+        scheme: getComputedStyle(document.documentElement).colorScheme,
+        bg: getComputedStyle(document.body).backgroundColor,
+        plusOne: document.querySelectorAll('.settings-section')[0].querySelector('h3')?.textContent,
+      };
+    })()
+  `);
+  console.log("主题板块:", JSON.stringify(theme));
+  check("主题板块排在最前面", theme.plusOne === "主题", theme.plusOne);
+  check("主题有三个切换卡", theme.count === 3, JSON.stringify(theme.values));
+  check("主题选项顺序 跟随系统/浅色/深色", theme.values?.join(",") === "system,light,dark", JSON.stringify(theme.values));
+  check("主题选项名正确", theme.names?.join(",") === "跟随系统,浅色,深色", JSON.stringify(theme.names));
+  check("主题三个卡片水平铺开", theme.sameRow === true && theme.gridColumns === 3);
+  check("默认跟随系统", theme.checked === "system" && theme.dataTheme === null, `${theme.checked}/${theme.dataTheme}`);
+
+  const themeSwitch = await evaluate(`
+    (async () => {
+      const s = [...document.querySelectorAll('.settings-section')].find(s => s.querySelector('h3')?.textContent === '主题');
+      const pick = (value) => [...s.querySelectorAll('input[type=radio]')].find(r => r.value === value);
+      const read = () => ({
+        dataTheme: document.documentElement.dataset.theme ?? null,
+        scheme: getComputedStyle(document.documentElement).colorScheme,
+        bg: getComputedStyle(document.body).backgroundColor,
+        text: getComputedStyle(document.body).color,
+      });
+      const before = read();
+      pick('light').click();
+      await new Promise(r => setTimeout(r, 320));
+      const light = read();
+      pick('dark').click();
+      await new Promise(r => setTimeout(r, 320));
+      const dark = read();
+      pick('system').click();
+      await new Promise(r => setTimeout(r, 320));
+      const restored = read();
+      return { before, light, dark, restored };
+    })()
+  `);
+  console.log("主题切换:", JSON.stringify(themeSwitch));
+  check(
+    "切到浅色后 color-scheme 与底色变浅",
+    themeSwitch.light.dataTheme === "light" &&
+      themeSwitch.light.scheme === "light" &&
+      themeSwitch.light.bg !== themeSwitch.before.bg,
+    JSON.stringify(themeSwitch.light),
+  );
+  check(
+    "切到深色后 color-scheme 为 dark",
+    themeSwitch.dark.dataTheme === "dark" && themeSwitch.dark.scheme === "dark",
+    JSON.stringify(themeSwitch.dark),
+  );
+  check(
+    "浅色与深色的底色、文字色都不同",
+    themeSwitch.light.bg !== themeSwitch.dark.bg && themeSwitch.light.text !== themeSwitch.dark.text,
+    `${themeSwitch.light.bg} / ${themeSwitch.dark.bg}`,
+  );
+  check("切回跟随系统后 data-theme 被移除", themeSwitch.restored.dataTheme === null);
 
   // 3b. 翻译板块：四个单选水平铺开、默认选中第 2 种、关掉带翻译后整体置灰
   const trans = await evaluate(`

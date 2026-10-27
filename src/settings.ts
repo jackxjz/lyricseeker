@@ -1,18 +1,22 @@
 // 设置项的持久化：写在 app_data_dir 的 settings.json 里（tauri-plugin-store）。
 //
-// 三块内容：
+// 四块内容：
+// - 主题：跟随系统 / 浅色 / 深色
 // - 词源：哪些平台参与检索（关掉的源在主页连 tab 都不显示）
 // - 歌词：复制时的四个开关
 // - 缓存：只有「清理」一个动作，占用大小由后端 `cache_info` 实时给出
 
 import { LazyStore } from "@tauri-apps/plugin-store";
-import type { CopyOptions, Source, TranslationLayout } from "./types";
+import type { CopyOptions, Source, ThemeMode, TranslationLayout } from "./types";
 import {
   DEFAULT_COPY_OPTIONS,
+  THEME_MODE_ORDER,
   TRANSLATION_LAYOUT_ORDER,
 } from "./types";
 
 export interface Settings {
+  /** 界面主题。 */
+  theme: ThemeMode;
   /** 开启的歌词源。空数组视为「用户把全部关掉了」，由界面提示至少开一个。 */
   enabledSources: Source[];
   /** 复制选项。 */
@@ -20,6 +24,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  theme: "system",
   enabledSources: ["qq", "kugou"],
   copy: DEFAULT_COPY_OPTIONS,
 };
@@ -33,9 +38,11 @@ const store = new LazyStore(STORE_PATH, { autoSave: 100 });
 /** 读取设置。任何一步失败都退回默认值 —— 设置读不出来不该拦住用户用软件。 */
 export async function loadSettings(): Promise<Settings> {
   try {
+    const theme = await store.get<ThemeMode>("theme");
     const enabled = await store.get<Source[]>("enabledSources");
     const copy = await store.get<CopyOptions>("copy");
     return {
+      theme: normalizeTheme(theme),
       enabledSources: normalizeSources(enabled),
       copy: { ...DEFAULT_COPY_OPTIONS, ...(copy ?? {}), translationLayout: normalizeLayout((copy ?? {}).translationLayout) },
     };
@@ -47,11 +54,17 @@ export async function loadSettings(): Promise<Settings> {
 /** 写回设置。失败只打日志，不打断交互。 */
 export async function saveSettings(settings: Settings): Promise<void> {
   try {
+    await store.set("theme", settings.theme);
     await store.set("enabledSources", settings.enabledSources);
     await store.set("copy", settings.copy);
   } catch (error) {
     console.error("保存设置失败", error);
   }
+}
+
+/** 老版本设置文件没有 `theme`，或写坏了 —— 一律退回「跟随系统」。 */
+function normalizeTheme(value: unknown): ThemeMode {
+  return THEME_MODE_ORDER.includes(value as ThemeMode) ? (value as ThemeMode) : DEFAULT_SETTINGS.theme;
 }
 
 /** 过滤掉不认识的值、去重、保持 qq/kugou 的固定顺序。 */
