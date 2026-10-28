@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "LyricSeeker 逐字歌词",
+        "title": "LyricSeeker 逐字歌词检索器",
         "width": 1180,
         "height": 760,
         "minWidth": 900,
